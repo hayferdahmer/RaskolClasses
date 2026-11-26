@@ -46,7 +46,7 @@ The helper runs hybrid Path B hits against the real Bukkit Player. The seven sce
 2. Cancel the magic event while allowing the physical event.
 3. Cancel both channel events.
 4. During the outer physical event, synchronously execute a nested hybrid hit, then cancel only the outer physical event.
-5. Increase the physical Paper event damage and verify that the shared reservation expands to the actual applied health delta.
+5. Increase the physical Paper event damage and verify that the shared reservation expands to the actual applied defensive-pool delta.
 6. Reduce the physical Paper event damage and verify that the unused reservation is released.
 7. Give the Player 100 absorption points, apply a physical hit that is fully absorbed, and verify that the reservation equals the consumed absorption while health remains unchanged.
 
