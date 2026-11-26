@@ -60,7 +60,7 @@ For each scenario the harness checks:
 - The absorption-only scenario proves that fully absorbed damage is attributed even when the Player's health does not change.
 - The nested scenario preserves the nested hit's reservation when the outer event is cancelled.
 
-The nested scenario specifically exercises `DamageAttribution`: a nested call's health delta must not be counted again as part of its parent call.
+The nested scenario specifically exercises `DamageAttribution`: a nested call's defensive-pool delta must not be counted again as part of its parent call.
 
 The final markers are `[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS` and `[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS`. Any failed assertion emits `BURST_CANCELLATION_MATRIX_FAIL`.
 
