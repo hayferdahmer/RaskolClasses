@@ -605,6 +605,10 @@ cp target/raskol-classes-*.jar plugins/
 
 | Файл | Содержание |
 | --- | --- |
+| 🧭 [Дорожная карта](docs/ROADMAP.md) | Этапы разработки, статусы, зависимости и релизные блокеры |
+| 🏛️ [Architecture Overview](docs/ARCHITECTURE.md) | Целевая архитектура, границы модулей и инварианты |
+| 📜 [Decision Log](docs/DECISIONS.md) | Принятые архитектурные решения и их статус |
+| 📍 [Development Status](docs/DEVELOPMENT_STATUS.md) | Срез main, PR, CI и следующие контрольные точки |
 | 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Поддерживаемая платформа, установка, RIPS, миграции и troubleshooting |
 | 📗 [`docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md`](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) | Схема профиля персонажа и миграция storage schema |
 | 📗 [`docs/architecture/V160_EXPERIENCE_PROGRESSION.md`](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) | XP-кривая, PvE-награды, анти-фарм и квестовые квитанции |

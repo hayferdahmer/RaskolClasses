@@ -16,7 +16,7 @@
 
 | Контур | Статус | Ответственность |
 |---|---|---|
-| **RASKOL Combat Lab** | Реализуется в PR #52–58; отдельный workflow находится в этой веточной цепочке | Статистические боевые проверки, headless probes, баланс и регрессии; общие Spotless/SpotBugs/unit gates делегированы Forge |
+| **RASKOL Arena — Combat CI Guard** | Архитектура в PR #72 и Arena-01 в PR #73; оба Draft и не интегрированы в main на срезе 2026-11-26 | Целевой контур combat diff audit, report/schema validation, headless deterministic scenarios и статистических регрессий; Maven/quality gates принадлежат Forge, Paper runtime — Watchtower |
 | **RASKOL Archivist** | Проектируется в PR #60; fail-closed SafeStorage уже включён в main через PR #62 | Аудит YAML-хранилищ, snapshots, резервные копии, восстановление и безопасная очистка |
 | **RASKOL Watchtower** | Встроен в Forge; Paper 26.2 Runtime успешно проверен на Java 25 | Отдельный job скачивает стабильный Paper 26.2 через Fill API, проверяет SHA-256, устанавливает собранный JAR и проверяет реальное включение плагина на Java 25 |
 
@@ -47,6 +47,19 @@ GitHub не запускает обычные `pull_request`/`push` workflows д
 ## Целевая последовательность
 
 1. **Завершено:** консолидация Forge + Sentinel и удаление дублирующих quality/maintenance workflows в PR #59.
-2. **Следующий этап:** обновить Combat-цепочку относительно актуального main и интегрировать PR #45–58 снизу вверх, сохраняя зависимости и не возвращая удалённые workflow.
+2. **Завершено:** согласованная последовательность боевых PR #76 → #77 → #79 → #80 интегрирована в main; следующий отдельный этап — PR #81, который проходит самостоятельное ревью и требует проверки актуальности относительно текущего main. Не менять PR #53–#58 без отдельного согласования.
 3. **Завершено:** Watchtower встроен в Forge; Paper 26.2 Runtime проходит на Java 25.
 4. После fail-closed исправления SafeStorage в PR #62 продолжить реализацию Archivist без смены YAML-формата и без автоматического удаления пользовательских данных.
+
+
+## RASKOL Arena | Combat CI Guard
+
+Архитектурная спецификация находится в PR #72, Arena-01 — в PR #73. На срезе 2026-11-26 оба PR остаются Draft и не входят в main.
+
+- Forge: общий Maven Build/Test, Spotless/SpotBugs и release pipeline.
+- Arena: combat diff audit, report/schema contracts, validators, headless deterministic scenarios и statistical comparison после утверждения baseline.
+- Watchtower: Paper 26.2 runtime QA.
+
+Не добавлять Arena в required checks и не менять пять текущих required contexts без отдельного решения. Pending baseline не является эталоном. Все 20 talent nodes остаются disabled; таланты исключены из Arena-01. PR #54–#58 не менять, не rebase и не merge в рамках этой документационной работы.
+
+Связанные документы: [ROADMAP](ROADMAP.md), [Architecture Overview](ARCHITECTURE.md), [PR #72](https://github.com/hayferdahmer/RaskolClasses/pull/72), [PR #73](https://github.com/hayferdahmer/RaskolClasses/pull/73).
