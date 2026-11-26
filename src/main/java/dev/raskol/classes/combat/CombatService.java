@@ -48,7 +48,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  * 1.14.7 (Sprint 3, P0-6A): enrageMult и onMeleeHitLand.
  * 1.14.10 (Sprint 7): critFeedback public; cfgD → ConfigReads.
  * 1.14.12 (Sprint 8): hpFractionOf через Hp.max.
- * 1.15.5 (Волна 3, аудит 2.6-31): before/after health guard — фактический урон.
+ * 1.15.5 (Волна 3, аудит 2.6-31): before/after defensive-pool guard — фактический урон с учётом поглощения.
  * 1.15.6 (Волна 4, аудит 2.6-2): setNoDamageTicks(0) перед каждым ударом пути B.
  * 1.15.6 (Волна 7, аудит 2.6-5): отдача Чернокнижика ТОЛЬКО уменьшает: не лечит при
  *         HP ниже minHp (верхний зажим carrierNow), не опускает ниже minHp,
