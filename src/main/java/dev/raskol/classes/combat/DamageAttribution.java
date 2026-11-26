@@ -56,9 +56,9 @@ final class DamageAttribution {
         }
 
         /**
-         * Возвращает только урон текущего вызова, исключая вложенные изменения HP.
-         * Полный net health delta передаётся родительскому scope: он тоже наблюдает
-         * этот delta в своём before/after измерении и должен исключить его целиком.
+         * Возвращает только урон текущего вызова, исключая вложенные изменения защитного пула.
+         * Полный net defensive-pool delta передаётся родительскому scope: он тоже
+         * наблюдает этот delta в своём before/after измерении и исключает его целиком.
          */
         double finish(double healthAfter) {
             if (finished) {
@@ -74,7 +74,7 @@ final class DamageAttribution {
             finished = true;
             frames.pop();
 
-            double observedDamage = Math.max(0.0, frame.healthBefore - healthAfter);
+            double observedDamage = Math.max(0.0, frame.defensivePoolBefore - healthAfter);
             double ownDamage = Math.max(0.0, observedDamage - frame.nestedDamage);
 
             for (Frame parent : frames) {
@@ -96,12 +96,12 @@ final class DamageAttribution {
 
     private static final class Frame {
         private final Object target;
-        private final double healthBefore;
+        private final double defensivePoolBefore;
         private double nestedDamage;
 
-        private Frame(Object target, double healthBefore) {
+        private Frame(Object target, double defensivePoolBefore) {
             this.target = target;
-            this.healthBefore = healthBefore;
+            this.defensivePoolBefore = defensivePoolBefore;
         }
     }
 }
