@@ -62,23 +62,6 @@ final class BurstReservationLedger {
         }
     }
 
-    /** Приводит конкретную резервацию к фактическому расходу и возвращает диагностику превышения. */
-    Settlement settle(Token token, double finalAmount) {
-        if (!Double.isFinite(finalAmount) || finalAmount < 0.0) {
-            return new Settlement(false, true, token == null ? 0.0 : token.amount, finalAmount, 0.0);
-        }
-        if (token == null || !entries.contains(token)) {
-            return new Settlement(false, false, 0.0, finalAmount, 0.0);
-        }
-
-        double previousAmount = token.amount;
-        token.amount = finalAmount;
-        if (token.amount <= EPSILON) {
-            entries.remove(token);
-        }
-        return new Settlement(true, false, previousAmount, finalAmount, Math.max(0.0, finalAmount - previousAmount));
-    }
-
     void prune(long nowMillis, long windowMillis) {
         while (!entries.isEmpty() && nowMillis - entries.peekFirst().createdAtMillis > windowMillis) {
             entries.removeFirst();

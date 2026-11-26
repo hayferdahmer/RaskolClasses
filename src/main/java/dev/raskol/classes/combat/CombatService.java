@@ -525,8 +525,6 @@ public final class CombatService implements Listener {
         double taken = physPart + magicTruePart;
         Player burstTarget = null;
         BurstReservationLedger.Token burstToken = null;
-        double burstReservedPhys = 0.0;
-        double burstReservedMagic = 0.0;
         if (!allowOverCap && target instanceof Player tp2) {
             burstTarget = tp2;
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
@@ -548,8 +546,6 @@ public final class CombatService implements Listener {
                 magicTruePart *= f;
                 taken = burstAllowed;
             }
-            burstReservedPhys = physPart;
-            burstReservedMagic = magicTruePart;
         }
         debugLog(target, source, safe, taken, castSchool);
         double scale = caps.scaleOf(target);
@@ -560,51 +556,51 @@ public final class CombatService implements Listener {
         double actualMagic = 0.0;
         try (AbilitySourceContext.Scope ignored =
                 AbilitySourceContext.open(source instanceof Player s2 ? s2.getUniqueId() : null)) {
-            if (applyPhys > 0.0) {
-                double before = target.getHealth();
-                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
-                try {
-                    target.setNoDamageTicks(0);
-                    beginSuppress();
-                    try {
-                        if (source != null) {
-                            target.damage(applyPhys, source);
-                        } else {
-                            target.damage(applyPhys);
-                        }
-                    } finally {
-                        endSuppress();
-                    }
-                } finally {
-                    actualPhys = attribution.finish(target.getHealth()) / scale;
-                }
-            }
-            if (applyMagic > 0.0) {
-                double before = target.getHealth();
-                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
-                try {
-                    target.setNoDamageTicks(0);
-                    beginSuppress();
-                    try {
-                        org.bukkit.damage.DamageType magic = magicType();
-                        if (magic != null) {
-                            DamageSource.Builder builder = DamageSource.builder(magic);
-                            if (source != null) {
-                                builder = builder.withDirectEntity(source).withCausingEntity(source);
-                            }
-                            target.damage(applyMagic, builder.build());
-                        } else {
-                            target.damage(applyMagic);
-                        }
-                    } finally {
-                        endSuppress();
-                    }
-                } finally {
-                    actualMagic = attribution.finish(target.getHealth()) / scale;
-                }
-            }
-        } finally {
             try {
+                if (applyPhys > 0.0) {
+                    double before = target.getHealth();
+                    DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
+                    try {
+                        target.setNoDamageTicks(0);
+                        beginSuppress();
+                        try {
+                            if (source != null) {
+                                target.damage(applyPhys, source);
+                            } else {
+                                target.damage(applyPhys);
+                            }
+                        } finally {
+                            endSuppress();
+                        }
+                    } finally {
+                        actualPhys = attribution.finish(target.getHealth()) / scale;
+                    }
+                }
+                if (applyMagic > 0.0) {
+                    double before = target.getHealth();
+                    DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
+                    try {
+                        target.setNoDamageTicks(0);
+                        beginSuppress();
+                        try {
+                            org.bukkit.damage.DamageType magic = magicType();
+                            if (magic != null) {
+                                DamageSource.Builder builder = DamageSource.builder(magic);
+                                if (source != null) {
+                                    builder = builder.withDirectEntity(source).withCausingEntity(source);
+                                }
+                                target.damage(applyMagic, builder.build());
+                            } else {
+                                target.damage(applyMagic);
+                            }
+                        } finally {
+                            endSuppress();
+                        }
+                    } finally {
+                        actualMagic = attribution.finish(target.getHealth()) / scale;
+                    }
+                }
+            } finally {
                 if (burstToken != null) {
                     BurstReservationLedger.Settlement settlement =
                             caps.settleBurst(burstTarget, burstToken, actualPhys + actualMagic);
@@ -619,11 +615,8 @@ public final class CombatService implements Listener {
                                         settlement.overage()));
                     }
                 }
-            } finally {
-                ABILITY_SOURCE.remove();
             }
         }
-
         double actualTaken = (actualPhys + actualMagic) * scale;
         if (actualTaken <= 0.0) {
             return 0.0;
