@@ -358,7 +358,7 @@ jobs:
             exit 1
           fi
           echo "Paper 26.2 Path B burst cancellation matrix and Warlock Black Mass integration: PASS"
-          if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 6 ]; then
+          if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 7 ]; then
             cat server.log
             cat bot.log
             echo "::error::Path B did not report all six scenario PASS records."
