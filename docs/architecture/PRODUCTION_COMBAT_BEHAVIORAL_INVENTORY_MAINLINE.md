@@ -35,7 +35,7 @@ Key implementation evidence: `VanillaDamageListener`, `DamageCaps`, `BurstRollba
 ### Path B — custom ability / CombatService path
 
 Observed flow:
-1. Class/tree ability handlers call the public `CombatService.dealDamage(...)` overloads.
+1. Class/tree ability handlers and other combat call sites invoke the public `CombatService.dealDamage(...)` overloads.
 2. CombatService validates target/source and hit eligibility, resolves the damage profile and applicable physical/magic components, and calculates the custom path's mitigation, school, penetration, immunity, avoidance, critical and cap behavior.
 3. The path reserves burst budget before applying damage.
 4. Applied physical and magic components are issued through synchronous Paper entity damage calls. The calls are wrapped in a stack-safe ability-source context and suppression scopes so the synthetic Paper events do not re-enter the ordinary production event calculations as fresh independent hits.
@@ -62,17 +62,17 @@ Current implementation uses a depth-counted ThreadLocal scope:
 
 ### Ability source attribution
 
-`AbilitySourceContext` is a stack of scopes rather than a single replaceable value. `CombatService` opens a scope for the source UUID around damage application; nested scopes restore the outer source on close. The Watchtower Black Mass probe observed the same Warlock source UUID on both nested damage events and verified lifesteal against the final MONITOR contributions.
+`AbilitySourceContext` is a stack of scopes rather than a single replaceable value. `CombatService` opens a scope around damage application, but the scope carries a UUID only when `source instanceof Player`; non-player sources currently open a scope with a `null` source. Nested scopes restore the outer source on close. The Watchtower Black Mass probe observed the same Warlock source UUID on both nested damage events and verified lifesteal against the final MONITOR contributions. This is synchronous call context, not metadata that automatically follows a projectile or pet after the call returns.
 
 ### Reflection
 
-CombatService exposes a separate reflect-suppression ThreadLocal marker. Reflection calls are routed through CombatService with the reflect marker set and cleared in a finally block. This is a distinct concern from general synthetic-event suppression and ability-source attribution.
+CombatService exposes a separate reflect-suppression ThreadLocal marker. Reflection paths set it around their damage work and clear it in `finally`; current consumers include the Warlock recoil and Black Mass recursion guards. It is distinct from general synthetic-event suppression and ability-source attribution, and it is not a universal reflection-event classifier.
 
 ### Current limitations to audit
 
 - ThreadLocal scopes are synchronous/thread-bound contracts; asynchronous handoff must not assume the context follows to another thread.
 - The deprecated legacy suppression API remains a compatibility surface and should be inventoried at all remaining call sites before removal.
-- Reflection marker nesting semantics are boolean rather than depth-counted; nested reflection behavior requires explicit test coverage before any refactor.
+- Reflection marker nesting semantics are boolean rather than depth-counted: an inner `endReflect()` can clear an outer reflect scope. Nested reflection behavior therefore requires explicit test coverage before any refactor.
 
 ## 5. Burst caps and settlement
 
@@ -105,9 +105,8 @@ These tests establish the stated scenarios only; they are not an exhaustive proo
 ## 6. Control effects and event interaction
 
 `CCGuard` currently enforces:
-- STUN/FEAR restrictions on player attacks against living entities;
-- BLIND miss chance on player attacks;
-- DISARM restrictions for held-item attacks, bow shots and player-thrown projectiles;
+- STUN/FEAR cancellation and BLIND miss chance on direct attacks where the event damager is a `Player` and the target is living; this branch does not itself classify a projectile hit as a direct player attack;
+- DISARM cancellation when a player attacks while holding any non-air item, plus bow-shot and player projectile-launch restrictions;
 - STUN/FEAR interaction restrictions for item/block use;
 - STUN restrictions for entity interaction and item consumption;
 - STUN/ROOT movement locking while allowing yaw/pitch changes;
@@ -127,29 +126,30 @@ This section describes the inspected CCGuard behavior; a full audit of every CC 
 | Proc damage | ProcService and CombatService call sites | Recursion guards, proc eligibility, budget ownership, event attribution |
 | Reflection | Path B true-damage call with reflect marker | Nested reflection and reflect-loop behavior |
 | CombatProfile mobs | Path A source/target profile and Path B target profile handling documented in CombatService history | Full profile field-by-field parity and all mob-source cases |
-| Pets | Pet owner attribution exists in the current talent/source-context workstream | Every pet event, owner credit, PvP/friendly-fire and talent consumer |
-| Projectiles | Vanilla projectile events and ability-scoped projectile routes exist in the wider combat implementation | Projectile launch-to-impact identity, shooter/owner attribution and all projectile families |
-| Traps / installations | Specific handlers and source-context factories exist in adjacent implementation work | General registry, ownership lifecycle and complete damage-budget behavior |
+| Pets | `PetService` stores the owner UUID in the pet PDC (and sets the vanilla wolf owner where applicable), and configures pet attack damage. However, `VanillaDamageListener.resolveAttacker` resolves only a direct `Player` or a projectile with a `Player` shooter; it does not read `rc_pet_owner`. `CombatService` also records an ability-source UUID only for `Player` sources. | Pet damage is not yet proven to be attributed to its owner for combat stats/procs/talents; audit pet event routing, owner credit, PvP/friendly-fire and any future pet-damage handlers |
+| Projectiles | `VanillaDamageListener` unwraps a projectile's shooter; a `Player` shooter is resolved as attacker. Item PDC `shotDamage` / `shotType` can override projectile damage/type. `DotService` also handles tagged projectile hits when the shooter is a `Player`. | Ability identity is not automatically preserved by the synchronous `AbilitySourceContext` across projectile flight; audit PDC tags, non-player shooters, launch-to-impact identity and every projectile family |
+| Traps / installations | Inspected handlers such as `BearTrapHandler`, `PentagramHandler` and `FrostRuneHandler` pass the resolved online owner `Player` as the source to `CombatService.dealDamage`; the service then creates its normal Player-source context. This is call-site behavior, not a separate generic source-context factory. | Audit every handler, offline-owner behavior, ownership lifecycle, source/ability identity and complete damage-budget behavior |
 | Environmental / custom plugin damage | Paper event entry where applicable | Classification policy for unknown/plugin sources and profile fallback |
 
 Do not infer an owner, ability ID, weapon hand or source kind when runtime data does not establish it. Unknown attribution must remain explicit.
 
 ## 8. Modifier and side-effect order
 
-The exact complete order is **not yet declared canonical** by this inventory. The following stages are known to exist across the production paths and must be traced call-site by call-site before extracting shared domain rules:
+The exact complete order is **not yet declared canonical** by this inventory. The high-level stages below are not a complete call-site map; they are a checklist of domains that must be traced before extracting shared rules:
 
-- source/target eligibility and PvP/PvE hit gates;
-- base damage and class/ability-specific outgoing bonuses;
-- physical versus magic channel split;
-- school selection, school immunity, vulnerability and mitigation;
-- armor/resistance and penetration traits;
-- avoidance and critical calculations;
-- single-hit and burst-window caps;
-- Paper event mutation/cancellation and final event damage;
-- actual applied defensive-pool delta;
-- post-hit effects, procs, DoT, CC break, lifesteal, recoil and reflection.
+- source/target eligibility, friendly-fire and PvP/PvE hit gates;
+- base damage, item/PDC shot damage, weapon/spell power, optional STR/INT contributions and class/spec bonuses;
+- physical/magic/true channel split and cast-school selection/multipliers;
+- outgoing proc modifiers such as amplifier, expose, enrage, stealth and armor penetration;
+- weapon mastery, shield block, critical chance/multipliers and class-specific conditional rules (including Warlock low-health magic-resistance bypass);
+- target school immunity, vulnerability, CombatProfile channel/school resistance, armor/resistance and channel/school penetration;
+- avoidance/parry and defensive reactions;
+- single-hit caps, burst reservation and settlement;
+- Paper event mutation/cancellation and final event damage on Path A;
+- actual applied defensive-pool delta (health + absorption) on Path B;
+- post-hit effects and ordering: CC break, defender/proc dispatch, DoT, lifesteal, recoil, reflection and follow-up strikes.
 
-The list is an audit checklist, not an assertion that every stage runs in this order on both paths. A later canonical-order decision must explicitly define which stages are shared, path-specific, conditional, or post-application.
+These examples are observed across the two paths but are not asserted to be shared or to run in the same order. For example, Path A's `applyOutgoingOffense` includes item/shot damage, WeaponMastery and crit/proc handling before later listener stages; Path B has its own Spec2 bonuses, proc modifiers, shield block, crit, resistance and post-application sequence. The later canonical-order decision must be based on a complete per-entry-point trace and explicitly classify each stage as shared, path-specific, conditional or post-application.
 
 ## 9. Healing
 
@@ -179,7 +179,7 @@ Build & Test and Quality Gate also passed on the same mainline checkpoint. Runti
 
 ### Unit/regression evidence
 
-The current source includes focused tests for depth-based suppression and token-addressed burst reservation/settlement, including invalid values, nested reservations, partial rollback, overage and exception-finally settlement. Full test-suite status is reported by the corresponding Build & Test workflow.
+Focused source tests include `CombatSuppressionScopeTest`, `AbilitySourceContextTest`, `DamageAttributionTest`, `BurstReservationLedgerTest` and `BurstRollbackTrackerTest`. They cover nested/non-consuming suppression reads, stack restoration, defensive-pool attribution and token/event-identity settlement cases including invalid or foreign tokens, partial rollback, overage and settlement after an exception. Full test-suite status is reported by the corresponding Build & Test workflow.
 
 ### Not established by the current evidence
 
