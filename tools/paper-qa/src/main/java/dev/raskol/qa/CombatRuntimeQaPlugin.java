@@ -681,7 +681,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
         pathATarget.setHealth(pathATarget.getMaxHealth());
         pathATarget.setNoDamageTicks(0);
-        combat.purgeBurstLog();
+        try {
+            double previousReservations = reservationTotal(pathATargetId);
+            clearReservations(pathATargetId);
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_LEDGER_ISOLATION_RESET scenario="
+                    + scenario + " previous=" + previousReservations);
+        } catch (ReflectiveOperationException exception) {
+            failPathA("Could not isolate the burst ledger before scenario " + scenario + ": " + exception);
+            return;
+        }
 
         double scale = combat.scaleOf(pathATarget);
         getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_START scenario=" + scenario
