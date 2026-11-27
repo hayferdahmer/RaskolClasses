@@ -24,7 +24,7 @@ Evidence labels: **Source-confirmed** means directly implemented in the snapshot
 
 ## 3. Listener priority map
 
-The map below reflects event annotations in source. Relative order among listeners at the same priority must not be inferred from this table; registration order matters and needs a dedicated check/test. External plugins can add handlers at any priority.
+The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: PetService (during core initialization) → Spec2RoleListener (later in core initialization) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence, not a guaranteed ordering between two handler methods inside the same listener instance. External plugins can add handlers at any priority.
 
 | Handler | Event | Priority | Effect | Checks suppression? |
 |---|---|---:|---|---|
@@ -91,7 +91,7 @@ Applicable handlers include:
 - `PassiveListener.onDamageByEntity`: dispatches class outgoing passive for a resolved Player attacker and incoming passive for a Player victim.
 - `PetService.onDamageByEntity`: pet ownership/friendly-fire cancellation and retargeting; not a generic pet-owner damage attribution bridge.
 
-These listeners are not globally suppression-aware. Their relative ordering at HIGH must be established from registration and interaction tests.
+These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed for this plugin. However, ActiveEffectManager has both a generic EntityDamageEvent handler and a more specific EntityDamageByEntityEvent handler at HIGH; their relative invocation order within that same listener instance is not established by the source declaration alone. External plugin handlers can also interleave according to their registration and priority.
 
 ### 4.4 HIGHEST / MONITOR / application
 
@@ -120,7 +120,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The relative order of HIGH handlers and third-party listeners is not asserted here.
+The plugin's HIGH listener-instance order is PetService → Spec2RoleListener → ActiveEffectManager → PassiveListener. Within ActiveEffectManager, ordering between its generic incoming and specific outgoing handler for the same EntityDamageByEntityEvent remains to be characterized. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
