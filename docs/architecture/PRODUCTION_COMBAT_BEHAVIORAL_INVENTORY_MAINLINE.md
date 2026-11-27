@@ -122,7 +122,7 @@ This section describes the inspected CCGuard behavior; a full audit of every CC 
 |---|---|---|
 | Native melee / vanilla damage | Paper event → Path A | Per-material/source formula parity and all listener interactions |
 | Custom class abilities | Ability handlers → CombatService / Path B | Complete per-ability modifier and side-effect inventory |
-| DoT | DotService applies synchronous damage; suppression protects the synthetic event | Tick ordering, owner attribution, logout/death/refresh/stack policies |
+| DoT | `DotInstance` stores the owner UUID; each tick requires the owner to be online and calls `target.damage(..., owner)` under suppression and reflect-suppression. The tick does not open an `AbilitySourceContext` scope. | Tick ordering, offline-owner policy, distinction between Paper damager identity and ability-source attribution, death/refresh/stack policies |
 | Proc damage | ProcService and CombatService call sites | Recursion guards, proc eligibility, budget ownership, event attribution |
 | Reflection | Path B true-damage call with reflect marker | Nested reflection and reflect-loop behavior |
 | CombatProfile mobs | Path A source/target profile and Path B target profile handling documented in CombatService history | Full profile field-by-field parity and all mob-source cases |
@@ -153,16 +153,12 @@ These examples are observed across the two paths but are not asserted to be shar
 
 ## 9. Healing
 
-Healing is not assumed to be the inverse of damage. The current inventory must separately trace:
-- requested healing versus actual health restored;
-- max-health clamping and dead-target behavior;
-- heal event cancellation/modification by other plugins;
-- overheal and absorption conversion, if any;
-- lifesteal and recoil interactions;
-- owner-to-pet healing and group healing;
-- healing procs and recursion suppression.
+Healing is not assumed to be the inverse of damage. Several distinct mechanisms are already visible in source:
+- Vanilla `EntityRegainHealthEvent`: `CombatService.onRegainHealth` cancels regain while anti-heal is active; `Spec2RoleListener.onRegain` modifies the amount for player targets using TANK and Spec2 heal-received modifiers.
+- Custom healing: `HpBarService.heal` fires `CustomHealEvent`; `Spec2RoleListener.onCustomHeal` composes outgoing HEALER/heal-out modifiers and incoming TANK/heal-received modifiers multiplicatively.
+- Warlock Black Mass lifesteal is a separate nested-damage consumer gated by the ability-source context and applies healing through the custom-heal path.
 
-The Watchtower Black Mass probe verifies one nested Warlock lifesteal case against actual health change and final MONITOR damage contributions. It does not establish global healing parity or all heal-event semantics.
+The remaining audit must trace requested amount versus actual health restored, event cancellation/order with other plugins, max-health clamping and dead-target behavior, overheal/absorption conversion, owner-to-pet and group healing, and healing-proc recursion. The Watchtower Black Mass probe verifies one nested Warlock lifesteal case against actual health change and final MONITOR damage contributions; it does not establish global healing parity or all vanilla/custom-heal semantics.
 
 ## 10. Test evidence at snapshot
 
