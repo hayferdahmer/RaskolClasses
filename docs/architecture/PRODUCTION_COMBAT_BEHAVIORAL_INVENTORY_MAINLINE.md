@@ -36,7 +36,7 @@ Key implementation evidence: `VanillaDamageListener`, `DamageCaps`, `BurstRollba
 
 Observed flow:
 1. Class/tree ability handlers and other combat call sites invoke the public `CombatService.dealDamage(...)` overloads.
-2. CombatService validates target/source and hit eligibility, resolves the damage profile and applicable physical/magic components, and calculates the custom path's mitigation, school, penetration, immunity, avoidance, critical and cap behavior.
+2. CombatService validates target/source and hit eligibility, resolves the applicable physical/magic/true components, and calculates the custom path's mitigation, school, penetration, immunity, critical and cap behavior. The current `dealDamage` path does not call `AvoidanceService.tryAvoid`; that dodge/parry check is present in Path A. Path B has a separate physical shield-block check for player targets.
 3. The path reserves burst budget before applying damage.
 4. Applied physical and magic components are issued through synchronous Paper entity damage calls. The calls are wrapped in a stack-safe ability-source context and suppression scopes so the synthetic Paper events do not re-enter the ordinary production event calculations as fresh independent hits.
 5. `DamageAttribution` records defensive-pool deltas per synchronous nested call, including health and absorption, so nested calls are not double-counted as part of their parent.
@@ -143,7 +143,7 @@ The exact complete order is **not yet declared canonical** by this inventory. Th
 - outgoing proc modifiers such as amplifier, expose, enrage, stealth and armor penetration;
 - weapon mastery, shield block, critical chance/multipliers and class-specific conditional rules (including Warlock low-health magic-resistance bypass);
 - target school immunity, vulnerability, CombatProfile channel/school resistance, armor/resistance and channel/school penetration;
-- avoidance/parry and defensive reactions;
+- Path A physical dodge/parry and defensive reactions; Path B's separate physical shield-block check (the current `CombatService.dealDamage` path does not call `AvoidanceService.tryAvoid`);
 - single-hit caps, burst reservation and settlement;
 - Paper event mutation/cancellation and final event damage on Path A;
 - actual applied defensive-pool delta (health + absorption) on Path B;
