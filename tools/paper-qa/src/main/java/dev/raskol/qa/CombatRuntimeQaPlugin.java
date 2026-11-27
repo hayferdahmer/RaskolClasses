@@ -449,7 +449,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             target.setAbsorptionAmount(0.0);
         }
         target.setNoDamageTicks(0);
-        combat.purgeBurstLog();
+        try {
+            double previousReservations = reservationTotal(targetId);
+            clearReservations(targetId);
+            getLogger().info("[RASKOL-COMBAT-QA] BURST_LEDGER_ISOLATION_RESET scenario="
+                    + scenario + " previous=" + previousReservations);
+        } catch (ReflectiveOperationException exception) {
+            fail("Could not isolate the burst ledger before scenario " + scenario + ": " + exception);
+            return;
+        }
 
         double beforeHealth = target.getHealth();
         double before = target.getHealth() + target.getAbsorptionAmount();
