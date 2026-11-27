@@ -31,11 +31,10 @@ The map below reflects event annotations and, for the plugin's own listener inst
 | `ActiveEffectManager.onIncomingEarly` | EntityDamageEvent | LOW | Fall/evasion cancellation; SHIELD_WALL ×0.2 | No |
 | `ActiveEffectManager.onOutgoingEarly` | EntityDamageByEntityEvent | LOW | STEALTH ×1.5; AIMED_SHOT ×2 for arrows | No |
 | `VanillaDamageListener.onDamage` | EntityDamageEvent | NORMAL | Path A calculations | Yes |
-| `ActiveEffectManager.onIncomingLate` | EntityDamageEvent | HIGH | Break target stealth on non-cancelled hit | No |
-| `ActiveEffectManager.onOutgoingLate` | EntityDamageByEntityEvent | HIGH | Consume stealth/AIMED_SHOT, slow; BLOOD_FURY proc damage | No |
-| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier | No |
-| `PassiveListener.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Class outgoing/incoming passives; Black Mass | No |
-| `PetService.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Pet ownership/friendly-fire and retargeting | No |
+| `PetService.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Pet ownership/friendly-fire and retargeting; registered first among these HIGH listener instances | No |
+| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier; registered after PetService | No |
+| `ActiveEffectManager.onIncomingLate` / `onOutgoingLate` | EntityDamageEvent / EntityDamageByEntityEvent | HIGH | Break target/attacker stealth; consume AIMED_SHOT, slow; BLOOD_FURY proc damage; registered after Spec2RoleListener | No |
+| `PassiveListener.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Class outgoing/incoming passives; Black Mass; registered after ActiveEffectManager | No |
 | `CCGuard.onDamageByEntity` | EntityDamageByEntityEvent | HIGHEST | STUN/FEAR, BLIND, DISARM attack restrictions | Yes |
 | `VanillaDamageListener.onDamageMonitor` | EntityDamageEvent | MONITOR | Path A burst settlement/rollback | No |
 
