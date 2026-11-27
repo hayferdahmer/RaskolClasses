@@ -110,6 +110,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private boolean outerCancelled;
     private boolean nestedCancelled;
     private double originalBurstWindowPct;
+    private double originalBurstWindowSeconds;
     private double originalSingleHitPct;
     private boolean configOverridden;
     private boolean cleanupDone;
@@ -366,9 +367,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             // Поднимаем только тестовые лимиты, чтобы сценарии проверяли rollback,
             // а не упирались в намеренно малый burst cap.
             originalBurstWindowPct = raskol.getConfig().getDouble("combat.burst-window-pct", 18.0);
+            originalBurstWindowSeconds = raskol.getConfig().getDouble("combat.burst-window-seconds", 3.0);
             originalSingleHitPct = raskol.getConfig().getDouble("combat.max-single-hit-pct", 35.0);
             raskol.getConfig().set("combat.burst-window-pct", 1000.0);
+            raskol.getConfig().set("combat.burst-window-seconds", 60.0);
             raskol.getConfig().set("combat.max-single-hit-pct", 1000.0);
+            getLogger().info("[RASKOL-COMBAT-QA] BURST_QA_LIMITS_OVERRIDE windowSeconds="
+                    + originalBurstWindowSeconds + "->60.0 burstPct=" + originalBurstWindowPct
+                    + "->1000.0 singleHitPct=" + originalSingleHitPct + "->1000.0");
             configOverridden = true;
 
             var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
@@ -443,7 +449,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             target.setAbsorptionAmount(0.0);
         }
         target.setNoDamageTicks(0);
-        combat.purgeBurstLog();
+        try {
+            double previousReservations = reservationTotal(targetId);
+            clearReservations(targetId);
+            getLogger().info("[RASKOL-COMBAT-QA] BURST_LEDGER_ISOLATION_RESET scenario="
+                    + scenario + " previous=" + previousReservations);
+        } catch (ReflectiveOperationException exception) {
+            fail("Could not isolate the burst ledger before scenario " + scenario + ": " + exception);
+            return;
+        }
 
         double beforeHealth = target.getHealth();
         double before = target.getHealth() + target.getAbsorptionAmount();
@@ -667,7 +681,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
         pathATarget.setHealth(pathATarget.getMaxHealth());
         pathATarget.setNoDamageTicks(0);
-        combat.purgeBurstLog();
+        try {
+            double previousReservations = reservationTotal(pathATargetId);
+            clearReservations(pathATargetId);
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_LEDGER_ISOLATION_RESET scenario="
+                    + scenario + " previous=" + previousReservations);
+        } catch (ReflectiveOperationException exception) {
+            failPathA("Could not isolate the burst ledger before scenario " + scenario + ": " + exception);
+            return;
+        }
 
         double scale = combat.scaleOf(pathATarget);
         getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_START scenario=" + scenario
@@ -981,6 +1003,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             RaskolClasses raskol = (RaskolClasses) Bukkit.getPluginManager().getPlugin("RaskolClasses");
             if (raskol != null) {
                 raskol.getConfig().set("combat.burst-window-pct", originalBurstWindowPct);
+                raskol.getConfig().set("combat.burst-window-seconds", originalBurstWindowSeconds);
                 raskol.getConfig().set("combat.max-single-hit-pct", originalSingleHitPct);
             }
             configOverridden = false;

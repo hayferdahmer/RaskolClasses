@@ -50,6 +50,8 @@ The helper runs hybrid Path B hits against the real Bukkit Player. The seven sce
 6. Reduce the physical Paper event damage and verify that the unused reservation is released.
 7. Give the Player 100 absorption points, apply a physical hit that is fully absorbed, and verify that the reservation equals the consumed absorption while health remains unchanged.
 
+Before every Path B and Path A scenario, the harness explicitly clears only the connected test Player's previous burst-ledger entries. This keeps each assertion independent while the 60-second test window remains long enough for reservation settlement; neither matrix relies on time-based expiry to isolate scenarios. Nested reservations created within one scenario are preserved until that scenario's assertions finish.
+
 For each scenario the harness checks:
 
 - The expected physical and magic Paper events were observed.
@@ -105,7 +107,7 @@ The Watchtower job accepts the runtime only when all of the following are presen
 - Four `PATH_A_SETTLEMENT_SCENARIO_PASS` records and `PATH_A_SETTLEMENT_MATRIX_PASS`
 - The Path A increased-damage overage diagnostic
 
-The isolated runtime raises only the burst and single-hit limits in the test server's in-memory plugin configuration so the matrices test reservation settlement rather than an intentionally restrictive cap. No production configuration or balance value is changed.
+The isolated runtime overrides only three in-memory combat settings for the duration of the QA run: `combat.burst-window-pct` and `combat.max-single-hit-pct` are raised to `1000.0`, and `combat.burst-window-seconds` is raised to `60.0`. The longer test-only window prevents a synchronous Paper event round-trip from expiring its reservation before settlement; it does not alter the production window or any damage calculation. The harness captures and restores all three original values during its shared cleanup path. No production configuration file or balance value is changed.
 
 ### Numerical tolerances
 
