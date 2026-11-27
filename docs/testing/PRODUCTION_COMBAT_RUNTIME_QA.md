@@ -50,6 +50,8 @@ The helper runs hybrid Path B hits against the real Bukkit Player. The seven sce
 6. Reduce the physical Paper event damage and verify that the unused reservation is released.
 7. Give the Player 100 absorption points, apply a physical hit that is fully absorbed, and verify that the reservation equals the consumed absorption while health remains unchanged.
 
+Before each Path B scenario, the harness explicitly clears only the connected test Player's previous burst-ledger entries. This keeps each assertion independent while the 60-second test window remains long enough for reservation settlement; the matrix no longer relies on time-based expiry to isolate scenarios.
+
 For each scenario the harness checks:
 
 - The expected physical and magic Paper events were observed.
