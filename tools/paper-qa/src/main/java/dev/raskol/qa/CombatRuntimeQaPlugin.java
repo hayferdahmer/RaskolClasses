@@ -329,7 +329,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 || activeEffectOrderTargetId == null
                 || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
                 || target == null
-                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())
+                || !target.getUniqueId().equals(CombatService.abilitySourceMark())) {
             return;
         }
         activeEffectNestedEvents++;
@@ -344,7 +345,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 || activeEffectOrderTargetId == null
                 || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
                 || target == null
-                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())
+                || !target.getUniqueId().equals(CombatService.abilitySourceMark())) {
             return;
         }
         activeEffectNestedAfter = event.getDamage();
