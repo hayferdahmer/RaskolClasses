@@ -88,6 +88,13 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private boolean dotSuppressionAtLowReflect;
     private boolean dotSuppressionStealthAtLow;
     private boolean dotSuppressionAbilityMarkNull;
+    private boolean pathAMonitorProbe;
+    private UUID pathAMonitorTargetId;
+    private int pathAMonitorEvents;
+    private double pathAMonitorLowestPool;
+    private double pathAMonitorMonitorPool;
+    private double pathAMonitorEventDamage;
+    private boolean pathAMonitorCancelled;
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
@@ -391,6 +398,35 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             return;
         }
         dotSuppressionAfter = event.getDamage();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void capturePathAMonitorLowest(EntityDamageByEntityEvent event) {
+        if (!pathAMonitorProbe
+                || pathAMonitorTargetId == null
+                || !pathAMonitorTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        pathAMonitorEvents++;
+        pathAMonitorLowestPool = event.getEntity().getHealth()
+                + event.getEntity().getAbsorptionAmount();
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void capturePathAMonitorMonitor(EntityDamageByEntityEvent event) {
+        if (!pathAMonitorProbe
+                || pathAMonitorTargetId == null
+                || !pathAMonitorTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        pathAMonitorMonitorPool = event.getEntity().getHealth()
+                + event.getEntity().getAbsorptionAmount();
+        pathAMonitorEventDamage = event.getDamage();
+        pathAMonitorCancelled = event.isCancelled();
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -995,6 +1031,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 cleanup();
                 return;
             }
+            runPathAMonitorPreApplicationProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             startPathAMatrix();
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
@@ -1210,6 +1251,65 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 + " damageAtMonitor=" + dotSuppressionAfter
                 + " lowMultiplierRatio=" + ratio
                 + " stealthAfterTick=" + stealthAfterTick);
+    }
+
+    /**
+     * Доказывает, что MONITOR видит состояние до фактического применения урона Paper.
+     */
+    private void runPathAMonitorPreApplicationProbe() {
+        LivingEntity probeTarget = (LivingEntity) spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(3.0, 0.0, 0.0));
+        probeTarget.setNoDamageTicks(0);
+        probeTarget.setAbsorptionAmount(0.0);
+        probeTarget.setHealth(probeTarget.getMaxHealth());
+        pathAMonitorTargetId = probeTarget.getUniqueId();
+        pathAMonitorEvents = 0;
+        pathAMonitorLowestPool = 0.0;
+        pathAMonitorMonitorPool = 0.0;
+        pathAMonitorEventDamage = 0.0;
+        pathAMonitorCancelled = false;
+        pathAMonitorProbe = true;
+        try {
+            CombatService.beginSuppress();
+            try {
+                probeTarget.damage(4.0, target);
+            } finally {
+                CombatService.endSuppress();
+            }
+        } finally {
+            pathAMonitorProbe = false;
+            pathAMonitorTargetId = null;
+        }
+
+        double afterPool = probeTarget.getHealth() + probeTarget.getAbsorptionAmount();
+        double observedApplied = pathAMonitorMonitorPool - afterPool;
+        boolean passed = pathAMonitorEvents == 1
+                && !pathAMonitorCancelled
+                && pathAMonitorLowestPool > 0.0
+                && Math.abs(pathAMonitorLowestPool - pathAMonitorMonitorPool) <= 1.0e-6
+                && pathAMonitorEventDamage > 0.0
+                && observedApplied > 0.0
+                && Math.abs(observedApplied - pathAMonitorEventDamage) <= 0.05;
+        remove(probeTarget);
+        if (!passed) {
+            failBlackMass("Path A MONITOR pre-application probe mismatch: events=" + pathAMonitorEvents
+                    + " cancelled=" + pathAMonitorCancelled
+                    + " lowPool=" + pathAMonitorLowestPool
+                    + " monitorPool=" + pathAMonitorMonitorPool
+                    + " eventDamage=" + pathAMonitorEventDamage
+                    + " afterPool=" + afterPool
+                    + " applied=" + observedApplied);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] PATH_A_MONITOR_PREAPPLICATION_CHARACTERIZED"
+                + " state=MONITOR_BEFORE_HEALTH_APPLICATION"
+                + " events=" + pathAMonitorEvents
+                + " lowPool=" + pathAMonitorLowestPool
+                + " monitorPool=" + pathAMonitorMonitorPool
+                + " eventDamage=" + pathAMonitorEventDamage
+                + " afterPool=" + afterPool
+                + " appliedDelta=" + observedApplied);
     }
 
     /**
