@@ -348,7 +348,7 @@ Not post-application:
 ## 11. Open questions before canonical approval
 
 1. **Same-priority order (runtime-characterized):** Paper 26.2 / Java 25 confirmed Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener, and ActiveEffectManager generic `onIncomingLate` → specific `onOutgoingLate`. Re-run this characterization if the Paper/JVM baseline changes.
-2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server and characterize priorities. Repository source cannot prove this.
+2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server, characterize priorities, and determine whether any handler issues direct nested `target.damage(...)`. Such unscoped nested deltas are included in the parent `DamageAttribution` measurement unless a child scope is opened. Repository source cannot prove the production plugin set.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
 5. **Suppression contract (decision recorded):** target behavior skips re-entry damage calculations and duplicate RaskolClasses modifiers/procs, but preserves mandatory defensive/ownership checks; it is not a blanket bypass of all listeners. Current implementation does not yet satisfy this contract.
