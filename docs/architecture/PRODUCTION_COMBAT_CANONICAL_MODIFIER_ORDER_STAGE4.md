@@ -370,7 +370,7 @@ Not post-application:
 
 ## 12. Runtime evidence available
 
-The isolated Paper 26.2 Watchtower run for mainline snapshot `a96a1a5c` passed selected scenarios:
+The isolated Paper 26.2 Watchtower runs for mainline snapshot `a96a1a5c` passed the pre-existing selected scenarios. Extended Stage 4 characterization evidence was captured in Forge run `46148770010`, Paper Runtime job `140990718709`: Build & Test and Quality Gate passed; the runtime job failed at the new ActiveEffectManager order probe because it observed two nested events where the probe expected one. The Black Mass markers below were emitted before that diagnostic failure:
 - Path B physical/magic cancellation combinations;
 - nested hit with outer physical cancellation;
 - event damage increased and reduced by another listener;
