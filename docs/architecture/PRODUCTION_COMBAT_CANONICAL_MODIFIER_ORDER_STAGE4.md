@@ -125,7 +125,7 @@ The NORMAL handler has materially different branches after shared offense/school
 - \`VanillaDamageListener.onDamageMonitor\` reconciles the Path A reservation against final event cancellation/damage. Cancellation rolls back the event's reservation; final damage above reservation is recorded as overage. This is event settlement, not a health/absorption measurement.
 - MONITOR settlement is not a measurement of actual health + absorption. Paper applies the final non-cancelled event after event dispatch.
 
-### 4.5 Path A sequence
+### 4.6 Path A sequence
 
 ```text
 Paper EntityDamageEvent
