@@ -306,23 +306,25 @@ jobs:
           fi
           QA_READY=0
           for attempt in $(seq 1 30); do
-            if grep -Fq "[RASKOL-COMBAT-QA] SUPPRESS_SCOPE_PASS" server.log; then
+            if grep -Fq "[RASKOL-COMBAT-QA] SUPPRESS_SCOPE_PASS" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] LISTENER_ORDER_PASS" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] REFLECT_NESTING_CHARACTERIZED" server.log; then
               QA_READY=1
               break
             fi
-            if grep -Fq "[RASKOL-COMBAT-QA] SUPPRESS_SCOPE_FAIL" server.log; then
+            if grep -Eq '\[RASKOL-COMBAT-QA\] (SUPPRESS_SCOPE_FAIL|LISTENER_ORDER_FAIL|REFLECT_NESTING_FAIL)' server.log; then
               cat server.log
-              echo "::error::Paper combat suppression runtime probe failed."
+              echo "::error::Paper combat / Stage 4 characterization probe failed."
               exit 1
             fi
             sleep 1
           done
           if [ "$QA_READY" -ne 1 ]; then
             cat server.log
-            echo "::error::Paper combat suppression runtime probe did not complete."
+            echo "::error::Paper combat / Stage 4 characterization probes did not complete."
             exit 1
           fi
-          echo "Paper 26.2 startup, RaskolClasses enablement and combat suppression probe: PASS"
+          echo "Paper 26.2 startup, suppression and Stage 4 runtime characterization: COMPLETE"
           grep -E 'Preparing level|Enabling RaskolClasses|RASKOL-COMBAT-QA|Done \(' server.log
 
           bun run "$GITHUB_WORKSPACE/tools/paper-qa/burst-runtime-bot.ts" > bot.log 2>&1 &
