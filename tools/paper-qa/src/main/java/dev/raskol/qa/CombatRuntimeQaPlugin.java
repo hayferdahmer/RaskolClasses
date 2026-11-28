@@ -5,6 +5,9 @@ package dev.raskol.qa;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.effect.ActiveEffectManager;
+import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -58,10 +61,40 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private LivingEntity blackMassTarget;
     private UUID blackMassTargetId;
     private boolean blackMassNestedTriggered;
+    private boolean blackMassDirectNestedProbe;
     private int blackMassEvents;
     private int blackMassAttributedEvents;
     private double blackMassExpectedHeal;
     private double blackMassHealthBefore;
+    private boolean blackMassCancelNextHit;
+    private boolean blackMassCancelledHitObserved;
+    private boolean blackMassHealCounting;
+    private int blackMassCustomHealEvents;
+    private double blackMassCustomHealAmount;
+    private boolean blackMassCustomHealHealerNull;
+    private boolean blackMassCustomHealCancelled;
+    private boolean activeEffectOrderProbe;
+    private UUID activeEffectOrderTargetId;
+    private int activeEffectNestedEvents;
+    private double activeEffectNestedBefore;
+    private double activeEffectNestedAfter;
+    private boolean activeEffectStealthAtNestedLowest;
+    private boolean dotSuppressionProbe;
+    private UUID dotSuppressionTargetId;
+    private int dotSuppressionEvents;
+    private double dotSuppressionBefore;
+    private double dotSuppressionAfter;
+    private boolean dotSuppressionAtLowSuppressed;
+    private boolean dotSuppressionAtLowReflect;
+    private boolean dotSuppressionStealthAtLow;
+    private boolean dotSuppressionAbilityMarkNull;
+    private boolean pathAMonitorProbe;
+    private UUID pathAMonitorTargetId;
+    private int pathAMonitorEvents;
+    private double pathAMonitorLowestPool;
+    private double pathAMonitorMonitorPool;
+    private double pathAMonitorEventDamage;
+    private boolean pathAMonitorCancelled;
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
@@ -127,6 +160,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         normalTargetKey = new NamespacedKey(this, "normal-target");
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getScheduler().runTaskLater(this, this::runSuppressionProbe, 20L);
+        Bukkit.getScheduler().runTaskLater(this, () -> Stage4RuntimeCharacterization.run(this), 25L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -251,9 +285,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
         if (!blackMassNestedTriggered) {
             blackMassNestedTriggered = true;
-            combat.dealDamage(blackMassTarget, target, new DamageProfile(1.0, 0.0, 0.0));
+            if (blackMassDirectNestedProbe) {
+                blackMassTarget.setNoDamageTicks(0);
+                blackMassTarget.damage(1.0, target);
+            } else {
+                combat.dealDamage(blackMassTarget, target, new DamageProfile(1.0, 0.0, 0.0));
+            }
             if (!target.getUniqueId().equals(CombatService.abilitySourceMark())) {
-                failBlackMass("outer ability source UUID was not restored after the nested dealDamage call");
+                failBlackMass("outer ability source UUID was not preserved after nested damage");
             }
         }
     }
@@ -272,6 +311,122 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             blackMassAttributedEvents++;
             blackMassExpectedHeal += event.getDamage() * blackMassLifestealFraction;
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void cancelBlackMassProbeHit(EntityDamageEvent event) {
+        if (!blackMassCancelNextHit
+                || blackMassTargetId == null
+                || !blackMassTargetId.equals(event.getEntity().getUniqueId())
+                || !(event instanceof EntityDamageByEntityEvent byEntity)
+                || !byEntity.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        event.setCancelled(true);
+        blackMassCancelledHitObserved = true;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void observeBlackMassCustomHeal(CustomHealEvent event) {
+        if (!blackMassHealCounting
+                || target == null
+                || !event.getTarget().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        blackMassCustomHealEvents++;
+        blackMassCustomHealAmount += event.getAmount();
+        blackMassCustomHealHealerNull |= event.getHealer() == null;
+        blackMassCustomHealCancelled |= event.isCancelled();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void captureActiveEffectNestedBefore(EntityDamageByEntityEvent event) {
+        if (!activeEffectOrderProbe
+                || activeEffectOrderTargetId == null
+                || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())
+                || !target.getUniqueId().equals(CombatService.abilitySourceMark())
+                || CombatService.reflectSuppressed()) {
+            return;
+        }
+        activeEffectNestedEvents++;
+        activeEffectNestedBefore = event.getDamage();
+        activeEffectStealthAtNestedLowest = raskolPlugin.getEffects()
+                .has(target.getUniqueId(), EffectType.STEALTH);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void captureActiveEffectNestedAfter(EntityDamageByEntityEvent event) {
+        if (!activeEffectOrderProbe
+                || activeEffectOrderTargetId == null
+                || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())
+                || !target.getUniqueId().equals(CombatService.abilitySourceMark())
+                || CombatService.reflectSuppressed()) {
+            return;
+        }
+        activeEffectNestedAfter = event.getDamage();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void captureDotSuppressionBefore(EntityDamageByEntityEvent event) {
+        if (!dotSuppressionProbe
+                || dotSuppressionTargetId == null
+                || !dotSuppressionTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        dotSuppressionEvents++;
+        dotSuppressionBefore = event.getDamage();
+        dotSuppressionAtLowSuppressed = CombatService.isSuppressed();
+        dotSuppressionAtLowReflect = CombatService.reflectSuppressed();
+        dotSuppressionStealthAtLow = raskolPlugin.getEffects()
+                .has(target.getUniqueId(), EffectType.STEALTH);
+        dotSuppressionAbilityMarkNull = CombatService.abilitySourceMark() == null;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void captureDotSuppressionAfter(EntityDamageByEntityEvent event) {
+        if (!dotSuppressionProbe
+                || dotSuppressionTargetId == null
+                || !dotSuppressionTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        dotSuppressionAfter = event.getDamage();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void capturePathAMonitorLowest(EntityDamageByEntityEvent event) {
+        if (!pathAMonitorProbe
+                || !(event.getEntity() instanceof LivingEntity damaged)
+                || pathAMonitorTargetId == null
+                || !pathAMonitorTargetId.equals(damaged.getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        pathAMonitorEvents++;
+        pathAMonitorLowestPool = damaged.getHealth() + damaged.getAbsorptionAmount();
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void capturePathAMonitorMonitor(EntityDamageByEntityEvent event) {
+        if (!pathAMonitorProbe
+                || !(event.getEntity() instanceof LivingEntity damaged)
+                || pathAMonitorTargetId == null
+                || !pathAMonitorTargetId.equals(damaged.getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        pathAMonitorMonitorPool = damaged.getHealth() + damaged.getAbsorptionAmount();
+        pathAMonitorEventDamage = event.getDamage();
+        pathAMonitorCancelled = event.isCancelled();
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -851,10 +1006,419 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                     + " expectedHeal=" + blackMassExpectedHeal
                     + " actualHeal=" + actualHeal
                     + " damageReported=" + reported);
+            runBlackMassDirectNestedProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runBlackMassCancelledHitProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runBlackMassMultiComponentProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runActiveEffectSameInstanceOrderProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runDotSuppressionProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runPathAMonitorPreApplicationProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             startPathAMatrix();
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
         }
+    }
+
+    /**
+     * Проверяет прямой вложенный Entity.damage без дочернего DamageAttribution scope.
+     */
+    private void runBlackMassDirectNestedProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = false;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        blackMassDirectNestedProbe = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, new DamageProfile(2.0, 0.0, 0.0));
+        } finally {
+            blackMassDirectNestedProbe = false;
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (!blackMassNestedTriggered) {
+            failBlackMass("direct nested Entity.damage callback was not triggered");
+            return;
+        }
+        if (blackMassEvents != 2 || blackMassAttributedEvents != 2 || blackMassCustomHealEvents != 2) {
+            failBlackMass("direct nested event attribution mismatch: damageEvents=" + blackMassEvents
+                    + " attributedEvents=" + blackMassAttributedEvents
+                    + " customHealEvents=" + blackMassCustomHealEvents);
+            return;
+        }
+        if (!closeReservation(reported, actualDamage)) {
+            failBlackMass("parent DamageAttribution did not report the full unscoped nested pool delta: reported="
+                    + reported + " actualDamage=" + actualDamage);
+            return;
+        }
+        if (!closeBlackMassHeal(actualHeal, blackMassExpectedHeal)) {
+            failBlackMass("direct nested event-time lifesteal mismatch: actual=" + actualHeal
+                    + " expected=" + blackMassExpectedHeal);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_DIRECT_NESTED_CHARACTERIZED"
+                + " state=UNSCOPED_DIRECT_NESTED_DELTA_INCLUDED_IN_PARENT"
+                + " damageEvents=" + blackMassEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " parentReported=" + reported
+                + " totalPoolDelta=" + actualDamage
+                + " actualHeal=" + actualHeal);
+    }
+
+    /**
+     * Напрямую определяет порядок двух HIGH-обработчиков ActiveEffectManager:
+     * входящий handler снимает STEALTH, а исходящий запускает BLOOD_FURY proc.
+     * Nested proc наблюдает STEALTH только если исходящий handler вызвался первым.
+     */
+    private void runActiveEffectSameInstanceOrderProbe() {
+        ActiveEffectManager effects = raskolPlugin.getEffects();
+        UUID playerId = target.getUniqueId();
+        effects.remove(playerId, EffectType.STEALTH);
+        effects.remove(playerId, EffectType.BLOOD_FURY);
+        effects.addOneShot(playerId, EffectType.STEALTH);
+        effects.addTimed(playerId, EffectType.BLOOD_FURY, 60_000L);
+
+        LivingEntity aggressor = (LivingEntity) spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(2.0, 0.0, 0.0));
+        aggressor.setNoDamageTicks(0);
+        target.setNoDamageTicks(0);
+        target.setHealth(target.getMaxHealth());
+
+        activeEffectOrderTargetId = aggressor.getUniqueId();
+        activeEffectNestedEvents = 0;
+        activeEffectNestedBefore = 0.0;
+        activeEffectNestedAfter = 0.0;
+        activeEffectStealthAtNestedLowest = false;
+        activeEffectOrderProbe = true;
+        try {
+            DamageSource outerSource = DamageSource.builder(DamageType.MAGIC)
+                    .withDirectEntity(aggressor)
+                    .withCausingEntity(aggressor)
+                    .build();
+            target.damage(4.0, outerSource);
+        } finally {
+            activeEffectOrderProbe = false;
+            activeEffectOrderTargetId = null;
+            effects.remove(playerId, EffectType.STEALTH);
+            effects.remove(playerId, EffectType.BLOOD_FURY);
+            remove(aggressor);
+        }
+
+        if (activeEffectNestedEvents != 1
+                || activeEffectNestedBefore <= 0.0
+                || activeEffectNestedAfter <= 0.0) {
+            failBlackMass("ActiveEffectManager order probe did not observe exactly one nested Blood Fury event: events="
+                    + activeEffectNestedEvents + " before=" + activeEffectNestedBefore
+                    + " after=" + activeEffectNestedAfter);
+            return;
+        }
+
+        double ratio = activeEffectNestedAfter / activeEffectNestedBefore;
+        String state = activeEffectStealthAtNestedLowest
+                ? "OUTGOING_HIGH_BEFORE_INCOMING_HIGH"
+                : "INCOMING_HIGH_BEFORE_OUTGOING_HIGH";
+        boolean ratioMatches = activeEffectStealthAtNestedLowest
+                ? Math.abs(ratio - 1.5) <= 0.05
+                : Math.abs(ratio - 1.0) <= 0.05;
+        if (!ratioMatches) {
+            failBlackMass("ActiveEffectManager same-instance order signal disagrees with nested LOW multiplier: state="
+                    + state + " ratio=" + ratio);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] ACTIVE_EFFECT_SAME_INSTANCE_ORDER_CHARACTERIZED"
+                + " state=" + state
+                + " stealthAtNestedLowest=" + activeEffectStealthAtNestedLowest
+                + " nestedDamageBeforeLow=" + activeEffectNestedBefore
+                + " nestedDamageAtMonitor=" + activeEffectNestedAfter
+                + " lowMultiplierRatio=" + ratio);
+    }
+
+    /**
+     * Проверяет, что suppression/reflect scopes DotService не отключают
+     * несuppress-aware ActiveEffectManager LOW/HIGH обработчики.
+     */
+    private void runDotSuppressionProbe() {
+        var effects = raskolPlugin.getEffects();
+        var dots = raskolPlugin.getCombat().dots();
+        UUID ownerId = target.getUniqueId();
+        effects.remove(ownerId, EffectType.STEALTH);
+        effects.addOneShot(ownerId, EffectType.STEALTH);
+
+        LivingEntity dotTarget = (LivingEntity) spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(2.0, 0.0, 0.0));
+        UUID dotTargetId = dotTarget.getUniqueId();
+        dots.removeAllOn(dotTargetId);
+        if (!dots.applyById(target, dotTarget, "burning") || dots.activeOn(dotTargetId) != 1) {
+            effects.remove(ownerId, EffectType.STEALTH);
+            remove(dotTarget);
+            failBlackMass("DoT suppression probe could not apply exactly one burning instance");
+            return;
+        }
+
+        dotSuppressionTargetId = dotTargetId;
+        dotSuppressionEvents = 0;
+        dotSuppressionBefore = 0.0;
+        dotSuppressionAfter = 0.0;
+        dotSuppressionAtLowSuppressed = false;
+        dotSuppressionAtLowReflect = false;
+        dotSuppressionStealthAtLow = false;
+        dotSuppressionAbilityMarkNull = false;
+        dotSuppressionProbe = true;
+        try {
+            dots.tick();
+        } finally {
+            dotSuppressionProbe = false;
+            dotSuppressionTargetId = null;
+        }
+
+        boolean stealthAfterTick = effects.has(ownerId, EffectType.STEALTH);
+        dots.removeAllOn(dotTargetId);
+        effects.remove(ownerId, EffectType.STEALTH);
+        remove(dotTarget);
+
+        double ratio = dotSuppressionBefore > 0.0
+                ? dotSuppressionAfter / dotSuppressionBefore
+                : 0.0;
+        boolean passed = dotSuppressionEvents == 1
+                && dotSuppressionBefore > 0.0
+                && dotSuppressionAfter > 0.0
+                && dotSuppressionAtLowSuppressed
+                && dotSuppressionAtLowReflect
+                && dotSuppressionStealthAtLow
+                && dotSuppressionAbilityMarkNull
+                && Math.abs(ratio - 1.5) <= 0.05
+                && !stealthAfterTick;
+        if (!passed) {
+            failBlackMass("DoT suppression probe mismatch: events=" + dotSuppressionEvents
+                    + " before=" + dotSuppressionBefore
+                    + " after=" + dotSuppressionAfter
+                    + " suppressed=" + dotSuppressionAtLowSuppressed
+                    + " reflect=" + dotSuppressionAtLowReflect
+                    + " stealthAtLow=" + dotSuppressionStealthAtLow
+                    + " abilityMarkNull=" + dotSuppressionAbilityMarkNull
+                    + " stealthAfterTick=" + stealthAfterTick
+                    + " ratio=" + ratio);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] DOT_SUPPRESSION_CHARACTERIZED"
+                + " state=SUPPRESSED_EVENT_STILL_MODIFIED_BY_ACTIVE_EFFECT_MANAGER"
+                + " events=" + dotSuppressionEvents
+                + " suppressedAtLowest=" + dotSuppressionAtLowSuppressed
+                + " reflectAtLowest=" + dotSuppressionAtLowReflect
+                + " stealthAtLowest=" + dotSuppressionStealthAtLow
+                + " abilitySourceMarkNull=" + dotSuppressionAbilityMarkNull
+                + " damageBeforeLow=" + dotSuppressionBefore
+                + " damageAtMonitor=" + dotSuppressionAfter
+                + " lowMultiplierRatio=" + ratio
+                + " stealthAfterTick=" + stealthAfterTick);
+    }
+
+    /**
+     * Доказывает, что MONITOR видит состояние до фактического применения урона Paper.
+     */
+    private void runPathAMonitorPreApplicationProbe() {
+        LivingEntity probeTarget = (LivingEntity) spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(3.0, 0.0, 0.0));
+        probeTarget.setNoDamageTicks(0);
+        probeTarget.setAbsorptionAmount(0.0);
+        probeTarget.setHealth(probeTarget.getMaxHealth());
+        pathAMonitorTargetId = probeTarget.getUniqueId();
+        pathAMonitorEvents = 0;
+        pathAMonitorLowestPool = 0.0;
+        pathAMonitorMonitorPool = 0.0;
+        pathAMonitorEventDamage = 0.0;
+        pathAMonitorCancelled = false;
+        pathAMonitorProbe = true;
+        try {
+            CombatService.beginSuppress();
+            try {
+                probeTarget.damage(4.0, target);
+            } finally {
+                CombatService.endSuppress();
+            }
+        } finally {
+            pathAMonitorProbe = false;
+            pathAMonitorTargetId = null;
+        }
+
+        double afterPool = probeTarget.getHealth() + probeTarget.getAbsorptionAmount();
+        double observedApplied = pathAMonitorMonitorPool - afterPool;
+        boolean passed = pathAMonitorEvents == 1
+                && !pathAMonitorCancelled
+                && pathAMonitorLowestPool > 0.0
+                && Math.abs(pathAMonitorLowestPool - pathAMonitorMonitorPool) <= 1.0e-6
+                && pathAMonitorEventDamage > 0.0
+                && observedApplied > 0.0
+                && Math.abs(observedApplied - pathAMonitorEventDamage) <= 0.05;
+        remove(probeTarget);
+        if (!passed) {
+            failBlackMass("Path A MONITOR pre-application probe mismatch: events=" + pathAMonitorEvents
+                    + " cancelled=" + pathAMonitorCancelled
+                    + " lowPool=" + pathAMonitorLowestPool
+                    + " monitorPool=" + pathAMonitorMonitorPool
+                    + " eventDamage=" + pathAMonitorEventDamage
+                    + " afterPool=" + afterPool
+                    + " applied=" + observedApplied);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] PATH_A_MONITOR_PREAPPLICATION_CHARACTERIZED"
+                + " state=MONITOR_BEFORE_HEALTH_APPLICATION"
+                + " events=" + pathAMonitorEvents
+                + " lowPool=" + pathAMonitorLowestPool
+                + " monitorPool=" + pathAMonitorMonitorPool
+                + " eventDamage=" + pathAMonitorEventDamage
+                + " afterPool=" + afterPool
+                + " appliedDelta=" + observedApplied);
+    }
+
+    /**
+     * Проверяет текущее HIGH-побочное действие, если последующий HIGHEST-обработчик
+     * отменяет исходный hit Path B.
+     */
+    private void runBlackMassCancelledHitProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = true;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+        blackMassCancelledHitObserved = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        blackMassCancelNextHit = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, new DamageProfile(2.0, 0.0, 0.0));
+        } finally {
+            blackMassCancelNextHit = false;
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (!blackMassCancelledHitObserved) {
+            failBlackMass("HIGHEST cancellation probe did not cancel the originating Path B event");
+            return;
+        }
+        if (Math.abs(reported) > 0.05 || Math.abs(actualDamage) > 0.05) {
+            failBlackMass("Cancelled Path B hit applied damage: reported=" + reported
+                    + " actualDamage=" + actualDamage);
+            return;
+        }
+
+        String state = blackMassCustomHealEvents == 0
+                ? "NO_CUSTOM_HEAL_EVENT"
+                : actualHeal > 0.001 ? "HEAL_EVENT_ON_CANCELLED_HIT" : "HEAL_EVENT_NOT_APPLIED";
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_CANCELLED_HIT_CHARACTERIZED"
+                + " state=" + state
+                + " damageEvents=" + blackMassEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " actualDamage=" + actualDamage
+                + " actualHeal=" + actualHeal
+                + " expectedHeal=" + blackMassExpectedHeal
+                + " customHealAmount=" + blackMassCustomHealAmount
+                + " healerNull=" + blackMassCustomHealHealerNull
+                + " healCancelled=" + blackMassCustomHealCancelled);
+    }
+
+    /**
+     * Проверяет, создаёт ли один вызов dealDamage с physical+magic один или несколько
+     * событий CustomHealEvent для Black Mass.
+     */
+    private void runBlackMassMultiComponentProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = true;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, DamageProfile.hybrid(1.0, 1.0));
+        } finally {
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (reported <= 0.0 || actualDamage <= 0.0) {
+            failBlackMass("Hybrid Black Mass characterization did not apply damage: reported="
+                    + reported + " actualDamage=" + actualDamage);
+            return;
+        }
+
+        String state = blackMassCustomHealEvents > 1
+                ? "MULTIPLE_HEAL_EVENTS_PER_INVOCATION"
+                : blackMassCustomHealEvents == 1 ? "ONE_HEAL_EVENT_PER_INVOCATION" : "NO_CUSTOM_HEAL_EVENT";
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_MULTI_COMPONENT_CHARACTERIZED"
+                + " state=" + state
+                + " damageEvents=" + blackMassEvents
+                + " attributedEvents=" + blackMassAttributedEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " actualDamage=" + actualDamage
+                + " reported=" + reported
+                + " actualHeal=" + actualHeal
+                + " customHealAmount=" + blackMassCustomHealAmount
+                + " healerNull=" + blackMassCustomHealHealerNull);
     }
 
     private void prepareWarlockClassCache(Player player) throws ReflectiveOperationException {
