@@ -92,6 +92,8 @@ Applicable handlers include:
 
 These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. The generic/specific probe demonstrates that Paper invokes methods in their registration order, but that method order changed between independent builds. ActiveEffectManager enumerated `onIncomingLate` (generic) before `onOutgoingLate` (specific) in both audited runs; treat this as an observation for those artifacts only, not a guarantee. External plugin handlers can still interleave according to their own registration and priority.
 
+This pair is not assumed to be semantically order-independent. `onOutgoingLate` can synchronously trigger a BLOOD_FURY `CombatService.dealDamage` call while the Player victim still has STEALTH. The nested Path B event is suppression-scoped, but `ActiveEffectManager.onOutgoingEarly` at LOW is not suppression-aware: it can apply STEALTH ×1.5 if `onIncomingLate` has not yet removed the victim's STEALTH. If incoming-late runs first, the nested proc sees no STEALTH. Therefore the same-instance HIGH method order can change nested Blood Fury damage. A direct runtime behavior probe is required; reflection order alone is insufficient.
+
 ### 4.4 HIGHEST / MONITOR / application
 
 - `CCGuard.onDamageByEntity` first returns if suppressed. Otherwise direct Player attacks against living targets may be cancelled for STUN/FEAR, BLIND miss chance or DISARM.
@@ -347,7 +349,7 @@ Not post-application:
 
 ## 11. Open questions before canonical approval
 
-1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. Same-instance generic/specific method order follows reflection registration order but varied across independent builds; ActiveEffectManager's observed order was generic then specific in both runs. Treat this as non-contractual until explicit registration/priorities or proven order independence remove the dependency.
+1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. Same-instance generic/specific invocation order varied across independent builds and is not reliably inferable from reflection. ActiveEffectManager has a concrete possible order dependency: BLOOD_FURY nested damage can receive or miss the STEALTH ×1.5 LOW multiplier depending on whether `onOutgoingLate` or `onIncomingLate` runs first. The direct Paper behavior probe must establish the actual order and whether it is stable; if not, implementation must remove this dependency or register deterministically.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server, characterize priorities, and determine whether any handler issues direct nested `target.damage(...)`. Such unscoped nested deltas are included in the parent `DamageAttribution` measurement unless a child scope is opened. Repository source cannot prove the production plugin set.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
