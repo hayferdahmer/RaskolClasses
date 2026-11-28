@@ -38,7 +38,7 @@ The map below reflects event annotations and, for the plugin's own listener inst
 | `CCGuard.onDamageByEntity` | EntityDamageByEntityEvent | HIGHEST | STUN/FEAR, BLIND, DISARM attack restrictions | Yes |
 | `VanillaDamageListener.onDamageMonitor` | EntityDamageEvent | MONITOR | Path A burst settlement/rollback | No |
 
-Handlers with `ignoreCancelled = true` are skipped if an earlier listener has cancelled the event. LOW incoming effects apply to Player targets across damage causes, not only player attacks. Same-priority listener ordering and external plugin listeners remain environment-dependent.
+Handlers with `ignoreCancelled = true` are skipped if an earlier listener has cancelled the event. LOW incoming effects apply to Player targets across damage causes, not only player attacks. The RaskolClasses HIGH order is runtime-characterized for Paper 26.2 / Java 25; third-party listener ordering remains environment-dependent.
 
 ## 4. Path A — native Paper event pipeline
 
