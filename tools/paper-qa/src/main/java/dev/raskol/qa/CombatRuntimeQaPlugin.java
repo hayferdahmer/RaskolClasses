@@ -6,6 +6,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import java.lang.reflect.Constructor;
@@ -1026,7 +1027,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         effects.addOneShot(playerId, EffectType.STEALTH);
         effects.addTimed(playerId, EffectType.BLOOD_FURY, 60_000L);
 
-        LivingEntity aggressor = spawnPassiveMob(
+        LivingEntity aggressor = (LivingEntity) spawnPassiveMob(
                 target.getWorld(), target.getLocation().clone().add(2.0, 0.0, 0.0));
         aggressor.setNoDamageTicks(0);
         target.setNoDamageTicks(0);
