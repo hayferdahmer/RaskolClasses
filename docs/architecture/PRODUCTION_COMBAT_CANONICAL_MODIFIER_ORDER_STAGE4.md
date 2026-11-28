@@ -110,16 +110,16 @@ Paper EntityDamageEvent
       → type/school/immunity/vulnerability
       → target resistance/penetration/avoidance/defense
       → target-side modifiers / cap / burst reservation
-  → HIGH ActiveEffectManager late effects
-  → HIGH Spec2RoleListener FIGHTER
-  → HIGH PassiveListener class passives (incl. Black Mass)
   → HIGH PetService ownership/friendly-fire logic
+  → HIGH Spec2RoleListener FIGHTER
+  → HIGH ActiveEffectManager late effects
+  → HIGH PassiveListener class passives (incl. Black Mass)
   → HIGHEST CCGuard
   → MONITOR burst settlement
   → Paper applies final event
 ```
 
-The plugin's HIGH listener-instance order is PetService → Spec2RoleListener → ActiveEffectManager → PassiveListener. Within ActiveEffectManager, ordering between its generic incoming and specific outgoing handler for the same EntityDamageByEntityEvent remains to be characterized. Third-party listeners are outside this repository trace.
+The plugin's source-confirmed HIGH listener-instance registration sequence is PetService → Spec2RoleListener → ActiveEffectManager → PassiveListener. The sequence above follows that instance order. This does not independently prove runtime invocation order across all Paper versions/configurations; same-priority invocation should be confirmed by a focused Paper characterization test. Within ActiveEffectManager, ordering between its generic EntityDamageEvent handler and specific EntityDamageByEntityEvent handler for the same event remains unestablished. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
@@ -199,6 +199,20 @@ Ability / proc call site
 | `PassiveListener` | Not suppression-aware | Not suppression-aware | May dispatch class passives when Player attacker resolution succeeds |
 | `PetService` | Not suppression-aware | Not suppression-aware | Ownership/friendly-fire logic, not generic owner attribution |
 | External plugins | Unknown | Unknown | Requires actual production plugin-set characterization |
+
+### 6.1 Recommended target contract (approved for design; not implemented)
+
+Suppression should **not** become a blanket bypass of every combat listener. It should prevent re-entry into RaskolClasses damage calculation and prevent duplicate RaskolClasses combat modifiers/procs on internally generated damage, while preserving mandatory defensive/ownership validation.
+
+Target behavior:
+
+- Skip Path A's ordinary damage calculation when the event is an internally generated suppressed hit.
+- Skip CCGuard's attack restrictions for that same internally generated hit, preserving the existing intent that CC does not retroactively cancel an already-authorized internal application.
+- Skip re-applicable damage modifiers, class passives and proc dispatch that would calculate or trigger a second combat effect (including suppression-sensitive ActiveEffectManager, Spec2RoleListener and PassiveListener branches).
+- Preserve mandatory pet ownership, friendly-fire and other security/eligibility checks unless a specific check is proven to be an unwanted duplicate of the initiating path. A suppression flag must not silently authorize damage that the ownership/eligibility layer would otherwise reject.
+- Do not claim control over third-party listeners. Their event handlers still receive Paper events unless they independently opt into a compatible marker/contract.
+
+This is the **approved design recommendation**, not current behavior. The current implementation is selective: VanillaDamageListener and CCGuard check suppression, while the listed ActiveEffectManager, Spec2RoleListener, PassiveListener and PetService damage handlers do not. Implementing the target contract requires explicit classification of each handler and tests; do not solve it by skipping every listener indiscriminately.
 
 Consequences:
 
@@ -304,7 +318,11 @@ Current gates:
 
 It does not wait for later same-priority listeners, HIGHEST cancellation, MONITOR final event state, Paper health/absorption application or a post-application `DamageAttribution` result.
 
-Therefore Black Mass is not presently proven to mean “percentage of actual damage dealt.” It is an event-time consumer. A future choice to preserve this behavior or redefine it against actual applied damage is a gameplay decision, not a neutral resolver refactor. The Watchtower nested heal assertion does not prove all Black Mass paths consume post-application damage.
+Therefore the current Black Mass behavior is event-time, not actual-damage-based. **Approved target contract:** Black Mass lifesteal must be calculated from the damage actually applied by the originating hit, measured as the confirmed health + absorption delta. Cancelled hits and hits with zero applied damage grant no lifesteal. The calculation must occur after Paper application and after the relevant damage result is known; it must not use an intermediate event damage snapshot.
+
+The actual-damage amount must be attributed to the originating hit exactly once. Nested damage, reflection and multiple component calls must not double-count the same applied delta. Healing continues through the existing HpBarService.heal / CustomHealEvent path, so heal cancellation, max-health clamping and other healing rules remain authoritative. Do not infer that attempted healing equals applied healing.
+
+This is an approved gameplay-semantic target, but it is **not implemented in this documentation PR**. Path B already measures health + absorption delta around synchronous application. Path A needs a reliable post-application measurement/attribution mechanism; MONITOR event state alone is insufficient. A later implementation must characterize both paths and their nested cases before changing production behavior. The existing Watchtower nested heal assertion does not prove all Black Mass paths consume post-application damage.
 
 ## 10. What is truly post-application?
 
@@ -331,8 +349,8 @@ Not post-application:
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server and characterize priorities. Repository source cannot prove this.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
-5. **Suppression contract:** decide whether suppression should bypass only core Path A / CCGuard or every combat listener. Current implementation does the former, not the latter.
-6. **Black Mass:** decide whether lifesteal remains event-time or becomes actual-damage-based; either choice is gameplay-significant.
+5. **Suppression contract (decision recorded):** target behavior skips re-entry damage calculations and duplicate RaskolClasses modifiers/procs, but preserves mandatory defensive/ownership checks; it is not a blanket bypass of all listeners. Current implementation does not yet satisfy this contract.
+6. **Black Mass (decision recorded):** target lifesteal is based on actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal. Current implementation remains event-time until a separately reviewed implementation is approved.
 7. **DoT:** test online/offline owner, school/event causes, ActiveEffectManager, FIGHTER/passives, death, refresh/stacking and DPS cap.
 8. **Projectiles:** inventory every family, launch metadata, ability identity, PDC validation and non-Player shooter.
 9. **Pets:** decide/test owner credit for stats, procs, talents, PvP and source context.
@@ -361,11 +379,11 @@ These scenarios do not establish universal listener order, complete production p
 
 The source trace establishes separate Path A and Path B sequences, confirms that suppression is selective rather than global, identifies event-time vs post-application effects, and records unresolved order/attribution issues.
 
-Recommended review sequence:
-1. Review source accuracy and missing handlers.
-2. Decide intended suppression contract.
-3. Decide whether Black Mass preserves event-time behavior or becomes actual-damage-based (do not implement either during this review).
-4. Approve the shared / Path A / Path B / conditional / post-application classification.
-5. Only then freeze golden characterization tests and design Combat Resolver contracts.
+Review decisions recorded:
+1. Suppression target contract approved: prevent re-entry and duplicate RaskolClasses modifiers/procs while retaining mandatory defensive/ownership checks; no blanket listener bypass.
+2. Black Mass target contract approved: calculate lifesteal from actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal.
+3. These are design decisions only. This PR changes documentation; it does not implement either behavior.
+4. Remaining source/runtime review must establish same-priority invocation details, external plugin interactions, Path A post-application attribution and nested damage accounting.
+5. Only after those gaps are characterized should shared / Path A / Path B / conditional / post-application classification be frozen and golden characterization tests / Combat Resolver contracts be designed.
 
 No production code/formulas changed. No talents enabled. No PR merged.
