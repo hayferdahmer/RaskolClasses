@@ -24,7 +24,7 @@ Evidence labels: **Source-confirmed** means directly implemented in the snapshot
 
 ## 3. Listener priority map
 
-The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: Spec2RoleListener (registered during core initialization) → PetService (registered later in core initialization through PetRuntimeOwner → PaperPetRuntimeRegistration) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence, not a guaranteed ordering between two handler methods inside the same listener instance. External plugins can add handlers at any priority.
+The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: Spec2RoleListener (registered during core initialization) → PetService (registered later in core initialization through PetRuntimeOwner → PaperPetRuntimeRegistration) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence. Paper 26.2 / Java 25 runtime characterization confirmed the generic/specific dispatch mechanism: a probe listener's observed order was `specific → generic`, matching its runtime method-registration order. On the same JVM, ActiveEffectManager's method enumeration was `onIncomingLate → onOutgoingLate`; under that same registration mechanism, its generic HIGH handler precedes its specific HIGH handler. This is runtime evidence for the audited Paper snapshot, not a guarantee across future Paper/JVM versions. External plugins can add handlers at any priority.
 
 | Handler | Event | Priority | Effect | Checks suppression? |
 |---|---|---:|---|---|
@@ -90,7 +90,7 @@ Applicable handlers include:
 - `PassiveListener.onDamageByEntity`: dispatches class outgoing passive for a resolved Player attacker and incoming passive for a Player victim.
 - `PetService.onDamageByEntity`: pet ownership/friendly-fire cancellation and retargeting; not a generic pet-owner damage attribution bridge.
 
-These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed for this plugin. However, ActiveEffectManager has both a generic EntityDamageEvent handler and a more specific EntityDamageByEntityEvent handler at HIGH; their relative invocation order within that same listener instance is not established by the source declaration alone. External plugin handlers can also interleave according to their registration and priority.
+These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed for this plugin. The Paper 26.2 runtime probe confirmed that same-instance generic/specific handlers execute in their method-registration order. ActiveEffectManager's runtime method order is `onIncomingLate` (generic) followed by `onOutgoingLate` (specific), so that is the characterized order for this Paper 26.2 / Java 25 snapshot. External plugin handlers can still interleave according to their own registration and priority.
 
 ### 4.4 HIGHEST / MONITOR / application
 
@@ -119,7 +119,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The plugin's source-confirmed HIGH listener-instance registration sequence is Spec2RoleListener → PetService → ActiveEffectManager → PassiveListener. The sequence above follows that instance order. This does not independently prove runtime invocation order across all Paper versions/configurations; same-priority invocation should be confirmed by a focused Paper characterization test. Within ActiveEffectManager, ordering between its generic EntityDamageEvent handler and specific EntityDamageByEntityEvent handler for the same event remains unestablished. Third-party listeners are outside this repository trace.
+The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The runtime probe also characterized ActiveEffectManager's generic `onIncomingLate` before specific `onOutgoingLate` handler order on Java 25. This evidence is scoped to the audited Paper/JVM snapshot; third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
@@ -270,7 +270,7 @@ Nested calls require independent characterization of outer/nested AbilitySourceC
 
 ### 7.5 Reflection
 
-Reflection consumers issue Path B true-damage calls under a separate reflect marker. Black Mass and Warlock recoil consult `reflectSuppressed()`. General suppression and reflect suppression are distinct. The reflect marker is a boolean ThreadLocal, not depth-counted: an inner `endReflect()` can clear an outer scope. Nested reflection is an explicit correctness risk and needs a targeted test before refactoring.
+Reflection consumers issue Path B true-damage calls under a separate reflect marker. Black Mass and Warlock recoil consult `reflectSuppressed()`. General suppression and reflect suppression are distinct. The reflect marker is a boolean ThreadLocal, not depth-counted. The Paper 26.2 QA probe confirmed that `beginReflect(); beginReflect(); endReflect()` clears the outer marker (`NESTED_CLEAR_BUG`). The audited in-repo entry points are DotService and WarlockPassives; their current guards appear to prevent re-entry while reflect suppression is already active. Therefore the probe establishes that the marker is not composable, but does not by itself prove that an existing built-in production path currently nests these scopes. Before relying on nested use, either prove the call graph cannot nest or introduce a separately reviewed depth-counted scope.
 
 ## 8. Modifier classification matrix
 
@@ -345,7 +345,7 @@ Not post-application:
 
 ## 11. Open questions before canonical approval
 
-1. **Same-priority order:** runtime-characterize the source-confirmed listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager → PassiveListener, and establish the relative execution of ActiveEffectManager's generic and specific handlers; test any state-consuming or damage-mutating interaction where order can change the result.
+1. **Same-priority order (runtime-characterized):** Paper 26.2 / Java 25 confirmed Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener, and ActiveEffectManager generic `onIncomingLate` → specific `onOutgoingLate`. Re-run this characterization if the Paper/JVM baseline changes.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server and characterize priorities. Repository source cannot prove this.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
@@ -355,7 +355,7 @@ Not post-application:
 8. **Projectiles:** inventory every family, launch metadata, ability identity, PDC validation and non-Player shooter.
 9. **Pets:** decide/test owner credit for stats, procs, talents, PvP and source context.
 10. **Proc recursion:** cover each proc family, `fromProc`, nested source scopes, suppression depth, reflection and burst tokens.
-11. **Reflection nesting:** characterize nested begin/end and consumers.
+11. **Reflection nesting (runtime-characterized):** the boolean marker clears the outer scope after an inner end. Confirm whether current in-repo call paths structurally prevent nesting; any change to depth-counted semantics requires a separate implementation review.
 12. **Healing/lifesteal application:** trace CustomHealEvent to actual health change, max-health clamp, cancellation, dead target, overheal/absorption and recursion.
 13. **Paper application:** compare event damage with actual health/absorption for relevant entities and DamageSources.
 14. **Talents:** all 20 talent nodes remain disabled; no talent behavior is assumed.
@@ -369,9 +369,12 @@ The isolated Paper 26.2 Watchtower run for mainline snapshot `a96a1a5c` passed s
 - absorption-only application;
 - Path A external reduction, external increase/overage, nested success with outer cancellation, and nested plus outer success;
 - suppression scope visibility/cleanup;
-- Black Mass nested source UUID and tested heal result.
+- Black Mass nested source UUID and tested heal result;
+- Paper 26.2 / Java 25 HIGH HandlerList order: `Spec2RoleListener → PetService → ActiveEffectManager ×2 → PassiveListener`;
+- same-instance generic/specific probe observed `specific → generic` and matched runtime method-registration order; ActiveEffectManager's runtime method order is `onIncomingLate → onOutgoingLate`, yielding generic before specific;
+- nested reflect probe confirmed `NESTED_CLEAR_BUG`: an inner `endReflect()` clears the outer boolean marker.
 
-These scenarios do not establish universal listener order, complete production plugin-chain behavior or Path A/Path B parity.
+These scenarios now characterize the plugin's own HIGH listener order and same-instance handler registration behavior on Paper 26.2 / Java 25. They still do not establish the external production plugin chain, complete modifier parity or every Path A / Path B route.
 
 ## 13. Stage 4 conclusion and review gate
 
@@ -383,7 +386,7 @@ Review decisions recorded:
 1. Suppression target contract approved: prevent re-entry and duplicate RaskolClasses modifiers/procs while retaining mandatory defensive/ownership checks; no blanket listener bypass.
 2. Black Mass target contract approved: calculate lifesteal from actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal.
 3. These are design decisions only. This PR changes documentation; it does not implement either behavior.
-4. Remaining source/runtime review must establish same-priority invocation details, external plugin interactions, and Path B exactly-once Black Mass attribution across nested, multi-component and reflection cases. Path A post-application measurement is not a Black Mass prerequisite under this snapshot's ability-source gate.
+4. Remaining source/runtime review must establish the actual production third-party listener chain, Path B exactly-once Black Mass attribution across nested and multi-component calls, and the remaining Path A / synthetic-event edge cases. Path A post-application measurement is not a Black Mass prerequisite under this snapshot's ability-source gate.
 5. Only after those gaps are characterized should shared / Path A / Path B / conditional / post-application classification be frozen and golden characterization tests / Combat Resolver contracts be designed.
 
 No production code/formulas changed. No talents enabled. No PR merged.
