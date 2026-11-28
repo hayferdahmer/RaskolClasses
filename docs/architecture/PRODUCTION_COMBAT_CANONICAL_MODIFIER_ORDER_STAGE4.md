@@ -31,7 +31,7 @@ The map below reflects event annotations and, for the plugin's own listener inst
 | `ActiveEffectManager.onIncomingEarly` | EntityDamageEvent | LOW | Fall/evasion cancellation; SHIELD_WALL ×0.2 | No |
 | `ActiveEffectManager.onOutgoingEarly` | EntityDamageByEntityEvent | LOW | STEALTH ×1.5; AIMED_SHOT ×2 for arrows | No |
 | `VanillaDamageListener.onDamage` | EntityDamageEvent | NORMAL | Path A calculations | Yes |
-| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier; registered before PetService |
+| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier; registered before PetService | No |
 | `PetService.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Pet ownership/friendly-fire and retargeting; registered after Spec2RoleListener and before ActiveEffectManager | No |
 | `ActiveEffectManager.onIncomingLate` / `onOutgoingLate` | EntityDamageEvent / EntityDamageByEntityEvent | HIGH | Break target/attacker stealth; consume AIMED_SHOT, slow; BLOOD_FURY proc damage; registered after PetService | No |
 | `PassiveListener.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Class outgoing/incoming passives; Black Mass; registered after ActiveEffectManager | No |
@@ -345,7 +345,7 @@ Not post-application:
 
 ## 11. Open questions before canonical approval
 
-1. **Same-priority order:** establish registration order for ActiveEffectManager, Spec2RoleListener, PassiveListener and PetService; test state-consuming and damage-mutating interactions.
+1. **Same-priority order:** runtime-characterize the source-confirmed listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager → PassiveListener, and establish the relative execution of ActiveEffectManager's generic and specific handlers; test any state-consuming or damage-mutating interaction where order can change the result.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server and characterize priorities. Repository source cannot prove this.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
@@ -383,7 +383,7 @@ Review decisions recorded:
 1. Suppression target contract approved: prevent re-entry and duplicate RaskolClasses modifiers/procs while retaining mandatory defensive/ownership checks; no blanket listener bypass.
 2. Black Mass target contract approved: calculate lifesteal from actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal.
 3. These are design decisions only. This PR changes documentation; it does not implement either behavior.
-4. Remaining source/runtime review must establish same-priority invocation details, external plugin interactions, Path A post-application attribution and nested damage accounting.
+4. Remaining source/runtime review must establish same-priority invocation details, external plugin interactions, and Path B exactly-once Black Mass attribution across nested, multi-component and reflection cases. Path A post-application measurement is not a Black Mass prerequisite under this snapshot's ability-source gate.
 5. Only after those gaps are characterized should shared / Path A / Path B / conditional / post-application classification be frozen and golden characterization tests / Combat Resolver contracts be designed.
 
 No production code/formulas changed. No talents enabled. No PR merged.
