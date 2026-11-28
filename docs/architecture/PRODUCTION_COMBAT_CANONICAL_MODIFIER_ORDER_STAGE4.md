@@ -19,21 +19,21 @@ Evidence labels: **Source-confirmed** means directly implemented in the snapshot
 3. **Suppression is not a global listener bypass.** `VanillaDamageListener` and `CCGuard` explicitly check `CombatService.isSuppressed()`. The inspected damage handlers in `ActiveEffectManager`, `Spec2RoleListener`, `PassiveListener` and `PetService` do not.
 4. Thus Path B synthetic events can still be modified or observed by other listeners. `DamageAttribution` measures actual health + absorption delta around synchronous calls, and burst settlement reconciles to that amount, but this does not make pre-event formulas or side effects equivalent to Path A.
 5. Path A NORMAL is not the last modifier: FIGHTER and class passives run at HIGH; CCGuard may cancel at HIGHEST. MONITOR settlement sees final event damage/cancellation, not actual applied health/absorption.
-6. Black Mass lifesteal is currently an event-time side effect: it reads current `event.getDamage()` through PassiveListener at HIGH and submits healing before Paper has applied the damage. It is not proven to be based on actual damage dealt.
+6. Black Mass lifesteal is currently an event-time side effect on Path B synthetic Paper events: it reads current `event.getDamage()` through PassiveListener at HIGH, before application. `AbilitySourceContext.open()` is only called by `CombatService.dealDamage()` in this snapshot, and WarlockPassives requires the attacker UUID to match that context; ordinary Path A events therefore do not trigger Black Mass.
 7. Watchtower confirms selected event mutation, cancellation, nested settlement, absorption and source-context cases only. It does not establish complete formula parity or canonical order.
 
 ## 3. Listener priority map
 
-The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: PetService (during core initialization) → Spec2RoleListener (later in core initialization) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence, not a guaranteed ordering between two handler methods inside the same listener instance. External plugins can add handlers at any priority.
+The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: Spec2RoleListener (registered during core initialization) → PetService (registered later in core initialization through PetRuntimeOwner → PaperPetRuntimeRegistration) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence, not a guaranteed ordering between two handler methods inside the same listener instance. External plugins can add handlers at any priority.
 
 | Handler | Event | Priority | Effect | Checks suppression? |
 |---|---|---:|---|---|
 | `ActiveEffectManager.onIncomingEarly` | EntityDamageEvent | LOW | Fall/evasion cancellation; SHIELD_WALL ×0.2 | No |
 | `ActiveEffectManager.onOutgoingEarly` | EntityDamageByEntityEvent | LOW | STEALTH ×1.5; AIMED_SHOT ×2 for arrows | No |
 | `VanillaDamageListener.onDamage` | EntityDamageEvent | NORMAL | Path A calculations | Yes |
-| `PetService.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Pet ownership/friendly-fire and retargeting; registered first among these HIGH listener instances | No |
-| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier; registered after PetService | No |
-| `ActiveEffectManager.onIncomingLate` / `onOutgoingLate` | EntityDamageEvent / EntityDamageByEntityEvent | HIGH | Break target/attacker stealth; consume AIMED_SHOT, slow; BLOOD_FURY proc damage; registered after Spec2RoleListener | No |
+| `Spec2RoleListener.onDamageDealt` | EntityDamageByEntityEvent | HIGH | FIGHTER outgoing multiplier; registered before PetService |
+| `PetService.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Pet ownership/friendly-fire and retargeting; registered after Spec2RoleListener and before ActiveEffectManager | No |
+| `ActiveEffectManager.onIncomingLate` / `onOutgoingLate` | EntityDamageEvent / EntityDamageByEntityEvent | HIGH | Break target/attacker stealth; consume AIMED_SHOT, slow; BLOOD_FURY proc damage; registered after PetService | No |
 | `PassiveListener.onDamageByEntity` | EntityDamageByEntityEvent | HIGH | Class outgoing/incoming passives; Black Mass; registered after ActiveEffectManager | No |
 | `CCGuard.onDamageByEntity` | EntityDamageByEntityEvent | HIGHEST | STUN/FEAR, BLIND, DISARM attack restrictions | Yes |
 | `VanillaDamageListener.onDamageMonitor` | EntityDamageEvent | MONITOR | Path A burst settlement/rollback | No |
@@ -110,8 +110,8 @@ Paper EntityDamageEvent
       → type/school/immunity/vulnerability
       → target resistance/penetration/avoidance/defense
       → target-side modifiers / cap / burst reservation
-  → HIGH PetService ownership/friendly-fire logic
   → HIGH Spec2RoleListener FIGHTER
+  → HIGH PetService ownership/friendly-fire logic
   → HIGH ActiveEffectManager late effects
   → HIGH PassiveListener class passives (incl. Black Mass)
   → HIGHEST CCGuard
@@ -119,7 +119,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The plugin's source-confirmed HIGH listener-instance registration sequence is PetService → Spec2RoleListener → ActiveEffectManager → PassiveListener. The sequence above follows that instance order. This does not independently prove runtime invocation order across all Paper versions/configurations; same-priority invocation should be confirmed by a focused Paper characterization test. Within ActiveEffectManager, ordering between its generic EntityDamageEvent handler and specific EntityDamageByEntityEvent handler for the same event remains unestablished. Third-party listeners are outside this repository trace.
+The plugin's source-confirmed HIGH listener-instance registration sequence is Spec2RoleListener → PetService → ActiveEffectManager → PassiveListener. The sequence above follows that instance order. This does not independently prove runtime invocation order across all Paper versions/configurations; same-priority invocation should be confirmed by a focused Paper characterization test. Within ActiveEffectManager, ordering between its generic EntityDamageEvent handler and specific EntityDamageByEntityEvent handler for the same event remains unestablished. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
@@ -322,7 +322,7 @@ Therefore the current Black Mass behavior is event-time, not actual-damage-based
 
 The actual-damage amount must be attributed to the originating hit exactly once. Nested damage, reflection and multiple component calls must not double-count the same applied delta. Healing continues through the existing HpBarService.heal / CustomHealEvent path, so heal cancellation, max-health clamping and other healing rules remain authoritative. Do not infer that attempted healing equals applied healing.
 
-This is an approved gameplay-semantic target, but it is **not implemented in this documentation PR**. Path B already measures health + absorption delta around synchronous application. Path A needs a reliable post-application measurement/attribution mechanism; MONITOR event state alone is insufficient. A later implementation must characterize both paths and their nested cases before changing production behavior. The existing Watchtower nested heal assertion does not prove all Black Mass paths consume post-application damage.
+This is an approved gameplay-semantic target, but it is **not implemented in this documentation PR**. The source trace narrows Black Mass to Path B: `AbilitySourceContext.open()` is called only inside `CombatService.dealDamage()`, and `WarlockPassives.onDamageOut` requires the attacker UUID to equal `CombatService.abilitySourceMark()`. Ordinary Path A events do not satisfy that gate in this snapshot. A post-application dispatch can therefore use Path B's measured `actualTaken` after `DamageAttribution` completes, once per `dealDamage` invocation (aggregating physical and magic components), while retaining the existing reflect guard and HpBarService/CustomHealEvent path. Nested calls remain separate originating hits only when their own measured damage is positive; tests must prove that parent attribution excludes nested deltas and that one invocation cannot dispatch twice. This is a source-derived implementation direction, not a production change or a claim that the target contract is already satisfied. The existing Watchtower nested heal assertion verifies the current event-time behavior, not the approved post-application behavior.
 
 ## 10. What is truly post-application?
 
