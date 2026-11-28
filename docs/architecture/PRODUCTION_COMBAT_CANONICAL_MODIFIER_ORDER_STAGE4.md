@@ -94,10 +94,35 @@ These listeners are not globally suppression-aware. The listener-instance regist
 
 This pair is not semantically order-independent. `onOutgoingLate` can synchronously trigger a BLOOD_FURY `CombatService.dealDamage` call while the Player victim still has STEALTH. Path B applies its own STEALTH modifier during pre-calculation; the nested synthetic event is suppression-scoped, but `ActiveEffectManager.onOutgoingEarly` at LOW is not suppression-aware and applies a second STEALTH ×1.5. The latest direct behavior probe measured `onOutgoingLate` before `onIncomingLate`: the nested event saw STEALTH at LOW and its damage increased from `0.444` to `0.666` (×1.5) after the Path B pre-calculation had already run. This confirms a duplicate stealth modifier on the nested Blood Fury proc for the tested Paper 26.2 / Java 25 build. The order must be made deterministic or this dependency removed before canonical approval.
 
-### 4.4 HIGHEST / MONITOR / application
+### 4.4 Path A NORMAL branch — Player target and non-Player target
 
-- `CCGuard.onDamageByEntity` first returns if suppressed. Otherwise direct Player attacks against living targets may be cancelled for STUN/FEAR, BLIND miss chance or DISARM.
-- `VanillaDamageListener.onDamageMonitor` reconciles the Path A reservation against final event cancellation/damage. Cancellation rolls back the event's reservation; final damage above reservation is recorded as overage.
+The NORMAL handler has materially different branches after shared offense/school resolution.
+
+**Non-Player target (\`event.getEntity()\` is not Player):**
+
+1. If not suppressed and a target \`CombatProfile\` exists, apply channel resistance minus source penetration plus school resistance minus school penetration; clamp resistance to 0–90%.
+2. If not suppressed, profile exists, damage is positive, cause is not CUSTOM and event is \`EntityDamageByEntityEvent\`, invoke reflection.
+3. If not suppressed and the target is living with positive damage, run carrier-break hook.
+4. Return. This branch does not run Player avoidance, Player-specific cap/burst reservation, Expose application or Player defender procs.
+
+**Player target:**
+
+1. SPECTATOR returns immediately.
+2. If resist processing is disabled in the target world, optionally run carrier-break hook and return.
+3. TRUE damage optionally applies environmental lethal scaling and carrier-break hook, then returns. It bypasses ordinary avoidance, resistance, Expose and burst reservation.
+4. Suppressed events return before avoidance/defense/cap/reflect/procs. (The earlier shared offense and school blocks are also skipped while suppressed.)
+5. PHYSICAL damage calls \`AvoidanceService.tryAvoid\`. Dodge/parry cancels; parry with shield dispatches \`onDefenderBlock\`, otherwise \`onDefenderAvoid\`; then returns.
+6. Apply channel and elemental mitigation using source-profile or attacker penetration. A non-positive defense multiplier cancels and returns.
+7. Apply Expose multiplier when a Player attacker is resolved.
+8. Apply single-hit cap, then reserve burst cap. If allowed damage is non-positive, cancel and return; otherwise arm rollback and write scaled event damage.
+9. For non-CUSTOM entity-caused damage, invoke reflection.
+10. Run carrier-break hook.
+11. For positive damage, dispatch \`onDefenderDamaged\`; with a resolved Player attacker, apply Expose and, for MAGIC, dispatch \`onDefenderDamagedByMagic\`.
+
+### 4.5 HIGHEST / MONITOR / application
+
+- \`CCGuard.onDamageByEntity\` first returns if suppressed. Otherwise direct Player attacks against living targets may be cancelled for STUN/FEAR, BLIND miss chance or DISARM.
+- \`VanillaDamageListener.onDamageMonitor\` reconciles the Path A reservation against final event cancellation/damage. Cancellation rolls back the event's reservation; final damage above reservation is recorded as overage. This is event settlement, not a health/absorption measurement.
 - MONITOR settlement is not a measurement of actual health + absorption. Paper applies the final non-cancelled event after event dispatch.
 
 ### 4.5 Path A sequence
@@ -355,7 +380,7 @@ Not post-application:
 
 1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. The latest direct Paper behavior probe established specific `onOutgoingLate` before generic `onIncomingLate`; the nested Blood Fury hit received a second STEALTH ×1.5 at LOW. Stability across independent builds remains unproven. Before canonical approval, make this ordering deterministic or remove the nested modifier dependency, then repeat the characterization.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server, characterize priorities, and determine whether any handler issues direct nested `target.damage(...)`. Such unscoped nested deltas are included in the parent `DamageAttribution` measurement unless a child scope is opened. Repository source cannot prove the production plugin set.
-3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
+3. **Path A Player branch (source-traced):** the NORMAL source sequence and early-return gates are now documented for Player and non-Player targets. Remaining work is runtime characterization across avoidance/parry, TRUE/CUSTOM/MAGIC/PHYSICAL sources, reflect, cap/reservation and synthetic nested events.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
 5. **Suppression contract (decision recorded):** target behavior skips re-entry damage calculations and duplicate RaskolClasses modifiers/procs, but preserves mandatory defensive/ownership checks; it is not a blanket bypass of all listeners. Current implementation does not yet satisfy this contract.
 6. **Black Mass (decision recorded; runtime divergence confirmed):** target lifesteal is based on actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal; one aggregate dispatch per originating `dealDamage` invocation. Paper 26.2 characterization confirms current event-time violations: a cancelled hit (`actualDamage=0`) still created one CustomHealEvent and healed about `0.1332`; one hybrid physical+magic invocation created two CustomHealEvents; direct unscoped nested damage was included in the parent measured delta. Production behavior remains unchanged.
