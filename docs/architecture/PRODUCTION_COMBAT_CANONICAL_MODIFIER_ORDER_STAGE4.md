@@ -24,7 +24,7 @@ Evidence labels: **Source-confirmed** means directly implemented in the snapshot
 
 ## 3. Listener priority map
 
-The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: Spec2RoleListener (registered during core initialization) → PetService (registered later in core initialization through PetRuntimeOwner → PaperPetRuntimeRegistration) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence. Paper 26.2 / Java 25 runtime characterization confirmed the generic/specific dispatch mechanism: a probe listener's observed order was `specific → generic`, matching its runtime method-registration order. On the same JVM, ActiveEffectManager's method enumeration was `onIncomingLate → onOutgoingLate`; under that same registration mechanism, its generic HIGH handler precedes its specific HIGH handler. This is runtime evidence for the audited Paper snapshot, not a guarantee across future Paper/JVM versions. External plugins can add handlers at any priority.
+The map below reflects event annotations and, for the plugin's own listener instances, the registration sequence traced through `RaskolClasses.onEnable`, `initializeCoreServices` and `registerGameplayListeners`. For the shared HIGH priority, the relevant listener-instance registration order is: Spec2RoleListener (registered during core initialization) → PetService (registered later in core initialization through PetRuntimeOwner → PaperPetRuntimeRegistration) → ActiveEffectManager (during gameplay listener registration) → PassiveListener (immediately after effects). This establishes listener-instance registration sequence. Paper 26.2 / Java 25 probes confirmed that same-instance generic/specific handlers execute in runtime method-registration order, but that order varied between two independent builds of the same QA source: one observed `specific → generic`, the other `generic → specific`. ActiveEffectManager's own runtime method enumeration was `onIncomingLate → onOutgoingLate` in both runs, but this remains a build-specific observation, not a stable contract. Do not rely on annotation/reflection order for a canonical modifier dependency; make the order explicit or ensure the handlers are order-independent. External plugins can add handlers at any priority.
 
 | Handler | Event | Priority | Effect | Checks suppression? |
 |---|---|---:|---|---|
@@ -90,7 +90,7 @@ Applicable handlers include:
 - `PassiveListener.onDamageByEntity`: dispatches class outgoing passive for a resolved Player attacker and incoming passive for a Player victim.
 - `PetService.onDamageByEntity`: pet ownership/friendly-fire cancellation and retargeting; not a generic pet-owner damage attribution bridge.
 
-These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed for this plugin. The Paper 26.2 runtime probe confirmed that same-instance generic/specific handlers execute in their method-registration order. ActiveEffectManager's runtime method order is `onIncomingLate` (generic) followed by `onOutgoingLate` (specific), so that is the characterized order for this Paper 26.2 / Java 25 snapshot. External plugin handlers can still interleave according to their own registration and priority.
+These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. The generic/specific probe demonstrates that Paper invokes methods in their registration order, but that method order changed between independent builds. ActiveEffectManager enumerated `onIncomingLate` (generic) before `onOutgoingLate` (specific) in both audited runs; treat this as an observation for those artifacts only, not a guarantee. External plugin handlers can still interleave according to their own registration and priority.
 
 ### 4.4 HIGHEST / MONITOR / application
 
@@ -119,7 +119,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The runtime probe also characterized ActiveEffectManager's generic `onIncomingLate` before specific `onOutgoingLate` handler order on Java 25. This evidence is scoped to the audited Paper/JVM snapshot; third-party listeners are outside this repository trace.
+The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The runtime probe observed ActiveEffectManager's generic `onIncomingLate` before specific `onOutgoingLate` in both audited artifacts, but a separate generic/specific probe changed order between builds. Therefore same-instance annotation order is not a stable contract and must not be used as a canonical dependency. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
@@ -347,7 +347,7 @@ Not post-application:
 
 ## 11. Open questions before canonical approval
 
-1. **Same-priority order (runtime-characterized):** Paper 26.2 / Java 25 confirmed Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener, and ActiveEffectManager generic `onIncomingLate` → specific `onOutgoingLate`. Re-run this characterization if the Paper/JVM baseline changes.
+1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. Same-instance generic/specific method order follows reflection registration order but varied across independent builds; ActiveEffectManager's observed order was generic then specific in both runs. Treat this as non-contractual until explicit registration/priorities or proven order independence remove the dependency.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server, characterize priorities, and determine whether any handler issues direct nested `target.damage(...)`. Such unscoped nested deltas are included in the parent `DamageAttribution` measurement unless a child scope is opened. Repository source cannot prove the production plugin set.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
@@ -373,16 +373,16 @@ The isolated Paper 26.2 Watchtower run for mainline snapshot `a96a1a5c` passed s
 - suppression scope visibility/cleanup;
 - Black Mass nested source UUID and tested heal result;
 - Paper 26.2 / Java 25 HIGH HandlerList order: `Spec2RoleListener → PetService → ActiveEffectManager ×2 → PassiveListener`;
-- same-instance generic/specific probe observed `specific → generic` and matched runtime method-registration order; ActiveEffectManager's runtime method order is `onIncomingLate → onOutgoingLate`, yielding generic before specific;
+- same-instance generic/specific probe followed reflection registration order, but observed `specific → generic` in one build and `generic → specific` in another; ActiveEffectManager enumerated `onIncomingLate → onOutgoingLate` in both runs, which is not a stable cross-build contract;
 - nested reflect probe confirmed `NESTED_CLEAR_BUG`: an inner `endReflect()` clears the outer boolean marker.
 
-These scenarios now characterize the plugin's own HIGH listener order and same-instance handler registration behavior on Paper 26.2 / Java 25. They still do not establish the external production plugin chain, complete modifier parity or every Path A / Path B route.
+These scenarios characterize the plugin's own HIGH listener-instance order on Paper 26.2 / Java 25 and demonstrate that same-instance method order can vary between builds. They still do not establish a stable same-instance method contract, the external production plugin chain, complete modifier parity or every Path A / Path B route.
 
 ## 13. Stage 4 conclusion and review gate
 
 **No canonical modifier order is approved or proposed as final by this document.**
 
-The source trace establishes separate Path A and Path B sequences, confirms that suppression is selective rather than global, identifies event-time vs post-application effects, and records unresolved order/attribution issues.
+The source trace establishes separate Path A and Path B sequences, confirms that suppression is selective rather than global, identifies event-time vs post-application effects, and records unresolved same-instance method-order, external-listener and attribution issues.
 
 Review decisions recorded:
 1. Suppression target contract approved: prevent re-entry and duplicate RaskolClasses modifiers/procs while retaining mandatory defensive/ownership checks; no blanket listener bypass.
