@@ -79,6 +79,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private double activeEffectNestedBefore;
     private double activeEffectNestedAfter;
     private boolean activeEffectStealthAtNestedLowest;
+    private boolean dotSuppressionProbe;
+    private UUID dotSuppressionTargetId;
+    private int dotSuppressionEvents;
+    private double dotSuppressionBefore;
+    private double dotSuppressionAfter;
+    private boolean dotSuppressionAtLowSuppressed;
+    private boolean dotSuppressionAtLowReflect;
+    private boolean dotSuppressionStealthAtLow;
+    private boolean dotSuppressionAbilityMarkNull;
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
@@ -352,6 +361,36 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             return;
         }
         activeEffectNestedAfter = event.getDamage();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void captureDotSuppressionBefore(EntityDamageByEntityEvent event) {
+        if (!dotSuppressionProbe
+                || dotSuppressionTargetId == null
+                || !dotSuppressionTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        dotSuppressionEvents++;
+        dotSuppressionBefore = event.getDamage();
+        dotSuppressionAtLowSuppressed = CombatService.isSuppressed();
+        dotSuppressionAtLowReflect = CombatService.reflectSuppressed();
+        dotSuppressionStealthAtLow = raskolPlugin.getEffects()
+                .has(target.getUniqueId(), EffectType.STEALTH);
+        dotSuppressionAbilityMarkNull = CombatService.abilitySourceMark() == null;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void captureDotSuppressionAfter(EntityDamageByEntityEvent event) {
+        if (!dotSuppressionProbe
+                || dotSuppressionTargetId == null
+                || !dotSuppressionTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        dotSuppressionAfter = event.getDamage();
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -951,6 +990,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 cleanup();
                 return;
             }
+            runDotSuppressionProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             startPathAMatrix();
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
@@ -1085,6 +1129,87 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 + " nestedDamageBeforeLow=" + activeEffectNestedBefore
                 + " nestedDamageAtMonitor=" + activeEffectNestedAfter
                 + " lowMultiplierRatio=" + ratio);
+    }
+
+    /**
+     * Проверяет, что suppression/reflect scopes DotService не отключают
+     * несuppress-aware ActiveEffectManager LOW/HIGH обработчики.
+     */
+    private void runDotSuppressionProbe() {
+        var effects = raskolPlugin.getEffects();
+        var dots = raskolPlugin.getCombat().dots();
+        UUID ownerId = target.getUniqueId();
+        effects.remove(ownerId, EffectType.STEALTH);
+        effects.addOneShot(ownerId, EffectType.STEALTH);
+
+        LivingEntity dotTarget = (LivingEntity) spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(2.0, 0.0, 0.0));
+        UUID dotTargetId = dotTarget.getUniqueId();
+        dots.removeAllOn(dotTargetId);
+        if (!dots.applyById(target, dotTarget, "burning") || dots.activeOn(dotTargetId) != 1) {
+            effects.remove(ownerId, EffectType.STEALTH);
+            remove(dotTarget);
+            failBlackMass("DoT suppression probe could not apply exactly one burning instance");
+            return;
+        }
+
+        dotSuppressionTargetId = dotTargetId;
+        dotSuppressionEvents = 0;
+        dotSuppressionBefore = 0.0;
+        dotSuppressionAfter = 0.0;
+        dotSuppressionAtLowSuppressed = false;
+        dotSuppressionAtLowReflect = false;
+        dotSuppressionStealthAtLow = false;
+        dotSuppressionAbilityMarkNull = false;
+        dotSuppressionProbe = true;
+        try {
+            dots.tick();
+        } finally {
+            dotSuppressionProbe = false;
+            dotSuppressionTargetId = null;
+        }
+
+        boolean stealthAfterTick = effects.has(ownerId, EffectType.STEALTH);
+        dots.removeAllOn(dotTargetId);
+        effects.remove(ownerId, EffectType.STEALTH);
+        remove(dotTarget);
+
+        double ratio = dotSuppressionBefore > 0.0
+                ? dotSuppressionAfter / dotSuppressionBefore
+                : 0.0;
+        boolean passed = dotSuppressionEvents == 1
+                && dotSuppressionBefore > 0.0
+                && dotSuppressionAfter > 0.0
+                && dotSuppressionAtLowSuppressed
+                && dotSuppressionAtLowReflect
+                && dotSuppressionStealthAtLow
+                && dotSuppressionAbilityMarkNull
+                && Math.abs(ratio - 1.5) <= 0.05
+                && !stealthAfterTick;
+        if (!passed) {
+            failBlackMass("DoT suppression probe mismatch: events=" + dotSuppressionEvents
+                    + " before=" + dotSuppressionBefore
+                    + " after=" + dotSuppressionAfter
+                    + " suppressed=" + dotSuppressionAtLowSuppressed
+                    + " reflect=" + dotSuppressionAtLowReflect
+                    + " stealthAtLow=" + dotSuppressionStealthAtLow
+                    + " abilityMarkNull=" + dotSuppressionAbilityMarkNull
+                    + " stealthAfterTick=" + stealthAfterTick
+                    + " ratio=" + ratio);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] DOT_SUPPRESSION_CHARACTERIZED"
+                + " state=SUPPRESSED_EVENT_STILL_MODIFIED_BY_ACTIVE_EFFECT_MANAGER"
+                + " events=" + dotSuppressionEvents
+                + " suppressedAtLowest=" + dotSuppressionAtLowSuppressed
+                + " reflectAtLowest=" + dotSuppressionAtLowReflect
+                + " stealthAtLowest=" + dotSuppressionStealthAtLow
+                + " abilitySourceMarkNull=" + dotSuppressionAbilityMarkNull
+                + " damageBeforeLow=" + dotSuppressionBefore
+                + " damageAtMonitor=" + dotSuppressionAfter
+                + " lowMultiplierRatio=" + ratio
+                + " stealthAfterTick=" + stealthAfterTick);
     }
 
     /**
