@@ -300,7 +300,7 @@ This classifies current implementation, not approval to unify formulas.
 | DoT | Separate scheduled damage route | Suppression + reflect marker; no AbilitySourceContext |
 | Pet owner attribution | Not established | PDC used for ownership guard, not resolved as attacker |
 | Projectile ability attribution | Not established universally | Shooter resolution exists; ability context does not persist through flight |
-| Black Mass lifesteal | Pre-application event-time side effect | Uses current event damage at HIGH |
+| Black Mass lifesteal | Current: pre-application event-time side effect; approved target: post-application actual-damage lifesteal | Current code uses event damage at HIGH; target requires measured health + absorption delta exactly once |
 | Black Mass reflection | Nested Path B side effect | Separate reflect marker |
 | CC break / landed procs / recoil | Path B post-application | Driven by actual attributed damage |
 | Path A MONITOR settlement | Path A lifecycle-specific | Final event state, not measured health delta |
