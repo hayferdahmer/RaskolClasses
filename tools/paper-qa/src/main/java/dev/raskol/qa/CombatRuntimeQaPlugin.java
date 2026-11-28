@@ -59,6 +59,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private LivingEntity blackMassTarget;
     private UUID blackMassTargetId;
     private boolean blackMassNestedTriggered;
+    private boolean blackMassDirectNestedProbe;
     private int blackMassEvents;
     private int blackMassAttributedEvents;
     private double blackMassExpectedHeal;
@@ -260,9 +261,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
         if (!blackMassNestedTriggered) {
             blackMassNestedTriggered = true;
-            combat.dealDamage(blackMassTarget, target, new DamageProfile(1.0, 0.0, 0.0));
+            if (blackMassDirectNestedProbe) {
+                blackMassTarget.setNoDamageTicks(0);
+                blackMassTarget.damage(1.0, target);
+            } else {
+                combat.dealDamage(blackMassTarget, target, new DamageProfile(1.0, 0.0, 0.0));
+            }
             if (!target.getUniqueId().equals(CombatService.abilitySourceMark())) {
-                failBlackMass("outer ability source UUID was not restored after the nested dealDamage call");
+                failBlackMass("outer ability source UUID was not preserved after nested damage");
             }
         }
     }
@@ -886,6 +892,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                     + " expectedHeal=" + blackMassExpectedHeal
                     + " actualHeal=" + actualHeal
                     + " damageReported=" + reported);
+            runBlackMassDirectNestedProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             runBlackMassCancelledHitProbe();
             if (failed) {
                 cleanup();
@@ -900,6 +911,67 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
         }
+    }
+
+    /**
+     * Проверяет прямой вложенный Entity.damage без дочернего DamageAttribution scope.
+     */
+    private void runBlackMassDirectNestedProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = false;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        blackMassDirectNestedProbe = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, new DamageProfile(2.0, 0.0, 0.0));
+        } finally {
+            blackMassDirectNestedProbe = false;
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (!blackMassNestedTriggered) {
+            failBlackMass("direct nested Entity.damage callback was not triggered");
+            return;
+        }
+        if (blackMassEvents != 2 || blackMassAttributedEvents != 2 || blackMassCustomHealEvents != 2) {
+            failBlackMass("direct nested event attribution mismatch: damageEvents=" + blackMassEvents
+                    + " attributedEvents=" + blackMassAttributedEvents
+                    + " customHealEvents=" + blackMassCustomHealEvents);
+            return;
+        }
+        if (!closeReservation(reported, actualDamage)) {
+            failBlackMass("parent DamageAttribution did not report the full unscoped nested pool delta: reported="
+                    + reported + " actualDamage=" + actualDamage);
+            return;
+        }
+        if (!closeBlackMassHeal(actualHeal, blackMassExpectedHeal)) {
+            failBlackMass("direct nested event-time lifesteal mismatch: actual=" + actualHeal
+                    + " expected=" + blackMassExpectedHeal);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_DIRECT_NESTED_CHARACTERIZED"
+                + " state=UNSCOPED_DIRECT_NESTED_DELTA_INCLUDED_IN_PARENT"
+                + " damageEvents=" + blackMassEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " parentReported=" + reported
+                + " totalPoolDelta=" + actualDamage
+                + " actualHeal=" + actualHeal);
     }
 
     /**
