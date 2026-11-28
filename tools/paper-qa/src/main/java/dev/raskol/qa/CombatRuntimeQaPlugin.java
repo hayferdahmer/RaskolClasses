@@ -5,6 +5,7 @@ package dev.raskol.qa;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.classsystem.PlayerClass;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -62,6 +63,13 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private int blackMassAttributedEvents;
     private double blackMassExpectedHeal;
     private double blackMassHealthBefore;
+    private boolean blackMassCancelNextHit;
+    private boolean blackMassCancelledHitObserved;
+    private boolean blackMassHealCounting;
+    private int blackMassCustomHealEvents;
+    private double blackMassCustomHealAmount;
+    private boolean blackMassCustomHealHealerNull;
+    private boolean blackMassCustomHealCancelled;
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
@@ -273,6 +281,32 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             blackMassAttributedEvents++;
             blackMassExpectedHeal += event.getDamage() * blackMassLifestealFraction;
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void cancelBlackMassProbeHit(EntityDamageEvent event) {
+        if (!blackMassCancelNextHit
+                || blackMassTargetId == null
+                || !blackMassTargetId.equals(event.getEntity().getUniqueId())
+                || !(event instanceof EntityDamageByEntityEvent byEntity)
+                || !byEntity.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        event.setCancelled(true);
+        blackMassCancelledHitObserved = true;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void observeBlackMassCustomHeal(CustomHealEvent event) {
+        if (!blackMassHealCounting
+                || target == null
+                || !event.getTarget().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        blackMassCustomHealEvents++;
+        blackMassCustomHealAmount += event.getAmount();
+        blackMassCustomHealHealerNull |= event.getHealer() == null;
+        blackMassCustomHealCancelled |= event.isCancelled();
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -852,10 +886,129 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                     + " expectedHeal=" + blackMassExpectedHeal
                     + " actualHeal=" + actualHeal
                     + " damageReported=" + reported);
+            runBlackMassCancelledHitProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
+            runBlackMassMultiComponentProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             startPathAMatrix();
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
         }
+    }
+
+    /**
+     * Characterizes the current HIGH-side-effect timing when a later HIGHEST
+     * handler cancels the originating Path B hit.
+     */
+    private void runBlackMassCancelledHitProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = true;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+        blackMassCancelledHitObserved = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        blackMassCancelNextHit = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, new DamageProfile(2.0, 0.0, 0.0));
+        } finally {
+            blackMassCancelNextHit = false;
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (!blackMassCancelledHitObserved) {
+            failBlackMass("HIGHEST cancellation probe did not cancel the originating Path B event");
+            return;
+        }
+        if (Math.abs(reported) > 0.05 || Math.abs(actualDamage) > 0.05) {
+            failBlackMass("Cancelled Path B hit applied damage: reported=" + reported
+                    + " actualDamage=" + actualDamage);
+            return;
+        }
+
+        String state = blackMassCustomHealEvents == 0
+                ? "NO_CUSTOM_HEAL_EVENT"
+                : actualHeal > 0.001 ? "HEAL_EVENT_ON_CANCELLED_HIT" : "HEAL_EVENT_NOT_APPLIED";
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_CANCELLED_HIT_CHARACTERIZED"
+                + " state=" + state
+                + " damageEvents=" + blackMassEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " actualDamage=" + actualDamage
+                + " actualHeal=" + actualHeal
+                + " expectedHeal=" + blackMassExpectedHeal
+                + " customHealAmount=" + blackMassCustomHealAmount
+                + " healerNull=" + blackMassCustomHealHealerNull
+                + " healCancelled=" + blackMassCustomHealCancelled);
+    }
+
+    /**
+     * Characterizes whether a single physical+magic dealDamage invocation
+     * emits one or multiple Black Mass CustomHealEvents.
+     */
+    private void runBlackMassMultiComponentProbe() {
+        target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+        blackMassTarget.setHealth(blackMassTarget.getMaxHealth());
+        blackMassTarget.setNoDamageTicks(0);
+        blackMassNestedTriggered = true;
+        blackMassEvents = 0;
+        blackMassAttributedEvents = 0;
+        blackMassExpectedHeal = 0.0;
+        blackMassCustomHealEvents = 0;
+        blackMassCustomHealAmount = 0.0;
+        blackMassCustomHealHealerNull = false;
+        blackMassCustomHealCancelled = false;
+
+        double playerHealthBefore = target.getHealth();
+        double targetPoolBefore = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double reported;
+        blackMassHealCounting = true;
+        try {
+            reported = combat.dealDamage(blackMassTarget, target, DamageProfile.hybrid(1.0, 1.0));
+        } finally {
+            blackMassHealCounting = false;
+        }
+
+        double targetPoolAfter = blackMassTarget.getHealth() + blackMassTarget.getAbsorptionAmount();
+        double actualDamage = targetPoolBefore - targetPoolAfter;
+        double actualHeal = target.getHealth() - playerHealthBefore;
+        if (reported <= 0.0 || actualDamage <= 0.0) {
+            failBlackMass("Hybrid Black Mass characterization did not apply damage: reported="
+                    + reported + " actualDamage=" + actualDamage);
+            return;
+        }
+
+        String state = blackMassCustomHealEvents > 1
+                ? "MULTIPLE_HEAL_EVENTS_PER_INVOCATION"
+                : blackMassCustomHealEvents == 1 ? "ONE_HEAL_EVENT_PER_INVOCATION" : "NO_CUSTOM_HEAL_EVENT";
+        getLogger().warning("[RASKOL-COMBAT-QA] BLACK_MASS_MULTI_COMPONENT_CHARACTERIZED"
+                + " state=" + state
+                + " damageEvents=" + blackMassEvents
+                + " attributedEvents=" + blackMassAttributedEvents
+                + " customHealEvents=" + blackMassCustomHealEvents
+                + " actualDamage=" + actualDamage
+                + " reported=" + reported
+                + " actualHeal=" + actualHeal
+                + " customHealAmount=" + blackMassCustomHealAmount
+                + " healerNull=" + blackMassCustomHealHealerNull);
     }
 
     private void prepareWarlockClassCache(Player player) throws ReflectiveOperationException {
