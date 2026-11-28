@@ -90,9 +90,9 @@ Applicable handlers include:
 - `PassiveListener.onDamageByEntity`: dispatches class outgoing passive for a resolved Player attacker and incoming passive for a Player victim.
 - `PetService.onDamageByEntity`: pet ownership/friendly-fire cancellation and retargeting; not a generic pet-owner damage attribution bridge.
 
-These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. The generic/specific probe observed different invocation orders across independent builds, including one run where actual invocation differed from reflection order. ActiveEffectManager's runtime reflection enumeration was generic before specific in two artifacts, but its actual invocation order has not yet been directly identified. External plugin handlers can still interleave according to their own registration and priority.
+These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. Generic/specific probe invocation order varied across independent builds and did not always match reflection order. A direct Paper 26.2 behavior probe now identifies the actual ActiveEffectManager HIGH order in the latest run: specific `onOutgoingLate` executes before generic `onIncomingLate`. This was established by the nested Blood Fury behavior, not by reflection enumeration. External plugin handlers can still interleave according to their own registration and priority.
 
-This pair is not semantically order-independent. `onOutgoingLate` can synchronously trigger a BLOOD_FURY `CombatService.dealDamage` call while the Player victim still has STEALTH. Path B applies its own STEALTH modifier during pre-calculation; the nested synthetic event is suppression-scoped, but `ActiveEffectManager.onOutgoingEarly` at LOW is not suppression-aware and can apply a second STEALTH ×1.5 to that same event. If `onIncomingLate` has not yet removed the victim's STEALTH, the nested Blood Fury proc can therefore receive both the Path B stealth modifier and the LOW event multiplier. If incoming-late runs first, the nested proc sees no STEALTH and receives neither. The same-instance HIGH method order can materially change nested Blood Fury damage and can expose a duplicate-modifier path. A direct runtime behavior probe is required; reflection order alone is insufficient.
+This pair is not semantically order-independent. `onOutgoingLate` can synchronously trigger a BLOOD_FURY `CombatService.dealDamage` call while the Player victim still has STEALTH. Path B applies its own STEALTH modifier during pre-calculation; the nested synthetic event is suppression-scoped, but `ActiveEffectManager.onOutgoingEarly` at LOW is not suppression-aware and applies a second STEALTH ×1.5. The latest direct behavior probe measured `onOutgoingLate` before `onIncomingLate`: the nested event saw STEALTH at LOW and its damage increased from `0.444` to `0.666` (×1.5) after the Path B pre-calculation had already run. This confirms a duplicate stealth modifier on the nested Blood Fury proc for the tested Paper 26.2 / Java 25 build. The order must be made deterministic or this dependency removed before canonical approval.
 
 ### 4.4 HIGHEST / MONITOR / application
 
@@ -121,7 +121,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The generic/specific runtime probe showed variable invocation order across builds and no reliable mapping from reflection order. ActiveEffectManager's actual method invocation order remains unproven; a direct behavioral probe is required. Therefore same-instance annotation order is not a stable contract and must not be used as a canonical dependency. Third-party listeners are outside this repository trace.
+The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The latest direct behavior probe measured ActiveEffectManager's specific `onOutgoingLate` before generic `onIncomingLate`; reflection enumeration reported the opposite. Generic/specific probe order also varied across builds. Treat the observed ActiveEffect order as current-build evidence, not a cross-build contract; the nested stealth dependency must be removed or explicitly ordered. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
@@ -353,7 +353,7 @@ Not post-application:
 
 ## 11. Open questions before canonical approval
 
-1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. Same-instance generic/specific invocation order varied across independent builds and is not reliably inferable from reflection. ActiveEffectManager has a concrete possible order dependency: BLOOD_FURY nested damage can receive or miss the STEALTH ×1.5 LOW multiplier depending on whether `onOutgoingLate` or `onIncomingLate` runs first. The direct Paper behavior probe must establish the actual order and whether it is stable; if not, implementation must remove this dependency or register deterministically.
+1. **Same-priority order:** the HIGH listener-instance sequence Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener is runtime-confirmed. The latest direct Paper behavior probe established specific `onOutgoingLate` before generic `onIncomingLate`; the nested Blood Fury hit received a second STEALTH ×1.5 at LOW. Stability across independent builds remains unproven. Before canonical approval, make this ordering deterministic or remove the nested modifier dependency, then repeat the characterization.
 2. **External listener chain:** identify relevant third-party damage modifiers/cancellers on production server, characterize priorities, and determine whether any handler issues direct nested `target.damage(...)`. Such unscoped nested deltas are included in the parent `DamageAttribution` measurement unless a child scope is opened. Repository source cannot prove the production plugin set.
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
@@ -370,18 +370,21 @@ Not post-application:
 
 ## 12. Runtime evidence available
 
-The isolated Paper 26.2 Watchtower runs for mainline snapshot `a96a1a5c` passed the pre-existing selected scenarios. Extended Stage 4 characterization evidence was captured in Forge run `46148770010`, Paper Runtime job `140990718709`: Build & Test and Quality Gate passed; the runtime job failed at the new ActiveEffectManager order probe because it observed two nested events where the probe expected one. The Black Mass markers below were emitted before that diagnostic failure:
+The latest extended Stage 4 characterization passed in Forge run `46149178466`, Paper Runtime job `140991943209`, on the same audited mainline snapshot `a96a1a5c`: Build & Test, Quality Gate, RIPS Security, Storage Integrity and Paper 26.2 Runtime all passed. An earlier diagnostic attempt counted a reflect-suppressed secondary event; the final probe isolates the Blood Fury Path B event by AbilitySourceContext and reflect marker. Runtime evidence:
 - Path B physical/magic cancellation combinations;
 - nested hit with outer physical cancellation;
 - event damage increased and reduced by another listener;
 - absorption-only application;
 - Path A external reduction, external increase/overage, nested success with outer cancellation, and nested plus outer success;
-- suppression scope visibility/cleanup;
+- suppression scope visibility/cleanup (`SUPPRESS_SCOPE_PASS`);
+- reflect marker nested scope: `NESTED_CLEAR_BUG` (`REFLECT_NESTING_CHARACTERIZED`);
 - Black Mass nested source UUID: expected heal `0.19980000000000003`, actual `0.199798583984375`;
 - cancelled Path B hit: `actualDamage=0.0`, `customHealEvents=1`, `actualHeal=0.13320159912109375` (`HEAL_EVENT_ON_CANCELLED_HIT`);
 - one hybrid physical+magic `dealDamage`: `damageEvents=2`, `customHealEvents=2`, `actualDamage=1.9400005340576172` (`MULTIPLE_HEAL_EVENTS_PER_INVOCATION`);
 - direct nested `target.damage()` without child scope: `parentReported=2.8600006103515625`, equal to `totalPoolDelta`, with two damage/heal events (`UNSCOPED_DIRECT_NESTED_DELTA_INCLUDED_IN_PARENT`);
 - Black Mass CustomHealEvent attribution: `healerNull=true`;
+- generic/specific probe actual order `specific → generic`; for ActiveEffectManager, direct behavior probe measured `onOutgoingLate → onIncomingLate` despite reflection enumeration `onIncomingLate → onOutgoingLate`;
+- ActiveEffectManager order-sensitive nested proc: `state=OUTGOING_HIGH_BEFORE_INCOMING_HIGH`, `stealthAtNestedLowest=true`, nested damage `0.444 → 0.666`, LOW multiplier ratio `1.5` (`ACTIVE_EFFECT_SAME_INSTANCE_ORDER_CHARACTERIZED`);
 - Paper 26.2 / Java 25 HIGH HandlerList order: `Spec2RoleListener → PetService → ActiveEffectManager ×2 → PassiveListener`;
 - same-instance generic/specific probe observed `specific → generic` in one build, `generic → specific` in another, and an actual order differing from reflection in a third; ActiveEffectManager's actual method invocation order remains unproven;
 - nested reflect probe confirmed `NESTED_CLEAR_BUG`: an inner `endReflect()` clears the outer boolean marker.
