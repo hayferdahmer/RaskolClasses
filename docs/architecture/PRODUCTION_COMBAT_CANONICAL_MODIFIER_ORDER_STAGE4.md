@@ -90,7 +90,7 @@ Applicable handlers include:
 - `PassiveListener.onDamageByEntity`: dispatches class outgoing passive for a resolved Player attacker and incoming passive for a Player victim.
 - `PetService.onDamageByEntity`: pet ownership/friendly-fire cancellation and retargeting; not a generic pet-owner damage attribution bridge.
 
-These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. The generic/specific probe demonstrates that Paper invokes methods in their registration order, but that method order changed between independent builds. ActiveEffectManager enumerated `onIncomingLate` (generic) before `onOutgoingLate` (specific) in both audited runs; treat this as an observation for those artifacts only, not a guarantee. External plugin handlers can still interleave according to their own registration and priority.
+These listeners are not globally suppression-aware. The listener-instance registration sequence above is source-confirmed and runtime-confirmed for this plugin. The generic/specific probe observed different invocation orders across independent builds, including one run where actual invocation differed from reflection order. ActiveEffectManager's runtime reflection enumeration was generic before specific in two artifacts, but its actual invocation order has not yet been directly identified. External plugin handlers can still interleave according to their own registration and priority.
 
 This pair is not assumed to be semantically order-independent. `onOutgoingLate` can synchronously trigger a BLOOD_FURY `CombatService.dealDamage` call while the Player victim still has STEALTH. The nested Path B event is suppression-scoped, but `ActiveEffectManager.onOutgoingEarly` at LOW is not suppression-aware: it can apply STEALTH ×1.5 if `onIncomingLate` has not yet removed the victim's STEALTH. If incoming-late runs first, the nested proc sees no STEALTH. Therefore the same-instance HIGH method order can change nested Blood Fury damage. A direct runtime behavior probe is required; reflection order alone is insufficient.
 
@@ -121,7 +121,7 @@ Paper EntityDamageEvent
   → Paper applies final event
 ```
 
-The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The runtime probe observed ActiveEffectManager's generic `onIncomingLate` before specific `onOutgoingLate` in both audited artifacts, but a separate generic/specific probe changed order between builds. Therefore same-instance annotation order is not a stable contract and must not be used as a canonical dependency. Third-party listeners are outside this repository trace.
+The plugin's source-confirmed and Paper 26.2 runtime-confirmed HIGH listener-instance sequence is Spec2RoleListener → PetService → ActiveEffectManager (two HIGH registrations) → PassiveListener. The generic/specific runtime probe showed variable invocation order across builds and no reliable mapping from reflection order. ActiveEffectManager's actual method invocation order remains unproven; a direct behavioral probe is required. Therefore same-instance annotation order is not a stable contract and must not be used as a canonical dependency. Third-party listeners are outside this repository trace.
 
 ## 5. Path B — CombatService.dealDamage
 
