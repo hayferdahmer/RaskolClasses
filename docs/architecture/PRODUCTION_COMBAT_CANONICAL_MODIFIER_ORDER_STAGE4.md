@@ -160,6 +160,8 @@ Eligible synthetic events may still reach:
 
 Because Path B measures actual health + absorption around the synchronous call, event mutations/cancellation that affect application are reflected in attribution. However, the Path B formula and reservation were computed before those Paper listeners ran. Settlement reconciles the difference; it does not move the earlier cap or formula stages.
 
+`DamageAttribution` excludes nested damage from a parent frame only when the nested operation opens its own child attribution scope (the current nested `CombatService.dealDamage` path). A direct `target.damage(...)` call made by an event listener does not create a child frame; its defensive-pool delta remains included in the parent's measured delta. This is a source-confirmed boundary and needs a dedicated runtime characterization before claiming exact per-origin attribution in the presence of direct nested event damage.
+
 ### 5.3 Path B sequence
 
 ```text
