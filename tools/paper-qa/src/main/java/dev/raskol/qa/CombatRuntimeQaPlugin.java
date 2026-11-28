@@ -6,6 +6,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -71,6 +72,12 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private double blackMassCustomHealAmount;
     private boolean blackMassCustomHealHealerNull;
     private boolean blackMassCustomHealCancelled;
+    private boolean activeEffectOrderProbe;
+    private UUID activeEffectOrderTargetId;
+    private int activeEffectNestedEvents;
+    private double activeEffectNestedBefore;
+    private double activeEffectNestedAfter;
+    private boolean activeEffectStealthAtNestedLowest;
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
@@ -313,6 +320,33 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         blackMassCustomHealAmount += event.getAmount();
         blackMassCustomHealHealerNull |= event.getHealer() == null;
         blackMassCustomHealCancelled |= event.isCancelled();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void captureActiveEffectNestedBefore(EntityDamageByEntityEvent event) {
+        if (!activeEffectOrderProbe
+                || activeEffectOrderTargetId == null
+                || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        activeEffectNestedEvents++;
+        activeEffectNestedBefore = event.getDamage();
+        activeEffectStealthAtNestedLowest = raskolPlugin.getEffects()
+                .has(target.getUniqueId(), EffectType.STEALTH);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void captureActiveEffectNestedAfter(EntityDamageByEntityEvent event) {
+        if (!activeEffectOrderProbe
+                || activeEffectOrderTargetId == null
+                || !activeEffectOrderTargetId.equals(event.getEntity().getUniqueId())
+                || target == null
+                || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+        activeEffectNestedAfter = event.getDamage();
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -907,6 +941,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 cleanup();
                 return;
             }
+            runActiveEffectSameInstanceOrderProbe();
+            if (failed) {
+                cleanup();
+                return;
+            }
             startPathAMatrix();
         } catch (ReflectiveOperationException | RuntimeException exception) {
             failBlackMass("Warlock integration probe threw: " + exception);
@@ -972,6 +1011,71 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 + " parentReported=" + reported
                 + " totalPoolDelta=" + actualDamage
                 + " actualHeal=" + actualHeal);
+    }
+
+    /**
+     * Напрямую определяет порядок двух HIGH-обработчиков ActiveEffectManager:
+     * входящий handler снимает STEALTH, а исходящий запускает BLOOD_FURY proc.
+     * Nested proc наблюдает STEALTH только если исходящий handler вызвался первым.
+     */
+    private void runActiveEffectSameInstanceOrderProbe() {
+        ActiveEffectManager effects = raskolPlugin.getEffects();
+        UUID playerId = target.getUniqueId();
+        effects.remove(playerId, EffectType.STEALTH);
+        effects.remove(playerId, EffectType.BLOOD_FURY);
+        effects.addOneShot(playerId, EffectType.STEALTH);
+        effects.addTimed(playerId, EffectType.BLOOD_FURY, 60_000L);
+
+        LivingEntity aggressor = spawnPassiveMob(
+                target.getWorld(), target.getLocation().clone().add(2.0, 0.0, 0.0));
+        aggressor.setNoDamageTicks(0);
+        target.setNoDamageTicks(0);
+        target.setHealth(target.getMaxHealth());
+
+        activeEffectOrderTargetId = aggressor.getUniqueId();
+        activeEffectNestedEvents = 0;
+        activeEffectNestedBefore = 0.0;
+        activeEffectNestedAfter = 0.0;
+        activeEffectStealthAtNestedLowest = false;
+        activeEffectOrderProbe = true;
+        try {
+            target.damage(4.0, aggressor);
+        } finally {
+            activeEffectOrderProbe = false;
+            activeEffectOrderTargetId = null;
+            effects.remove(playerId, EffectType.STEALTH);
+            effects.remove(playerId, EffectType.BLOOD_FURY);
+            remove(aggressor);
+        }
+
+        if (activeEffectNestedEvents != 1
+                || activeEffectNestedBefore <= 0.0
+                || activeEffectNestedAfter <= 0.0) {
+            failBlackMass("ActiveEffectManager order probe did not observe exactly one nested Blood Fury event: events="
+                    + activeEffectNestedEvents + " before=" + activeEffectNestedBefore
+                    + " after=" + activeEffectNestedAfter);
+            return;
+        }
+
+        double ratio = activeEffectNestedAfter / activeEffectNestedBefore;
+        String state = activeEffectStealthAtNestedLowest
+                ? "OUTGOING_HIGH_BEFORE_INCOMING_HIGH"
+                : "INCOMING_HIGH_BEFORE_OUTGOING_HIGH";
+        boolean ratioMatches = activeEffectStealthAtNestedLowest
+                ? Math.abs(ratio - 1.5) <= 0.05
+                : Math.abs(ratio - 1.0) <= 0.05;
+        if (!ratioMatches) {
+            failBlackMass("ActiveEffectManager same-instance order signal disagrees with nested LOW multiplier: state="
+                    + state + " ratio=" + ratio);
+            return;
+        }
+
+        getLogger().warning("[RASKOL-COMBAT-QA] ACTIVE_EFFECT_SAME_INSTANCE_ORDER_CHARACTERIZED"
+                + " state=" + state
+                + " stealthAtNestedLowest=" + activeEffectStealthAtNestedLowest
+                + " nestedDamageBeforeLow=" + activeEffectNestedBefore
+                + " nestedDamageAtMonitor=" + activeEffectNestedAfter
+                + " lowMultiplierRatio=" + ratio);
     }
 
     /**
