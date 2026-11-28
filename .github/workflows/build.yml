@@ -334,7 +334,9 @@ jobs:
           for attempt in $(seq 1 300); do
             if grep -Fq "[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS" server.log \
               && grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS" server.log \
-              && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_PASS" server.log; then
+              && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_PASS" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_CANCELLED_HIT_CHARACTERIZED" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_MULTI_COMPONENT_CHARACTERIZED" server.log; then
               MATRIX_READY=1
               break
             fi
