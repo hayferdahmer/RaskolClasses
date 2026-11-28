@@ -270,6 +270,8 @@ Therefore `VanillaDamageListener` and `CCGuard` skip their suppression-aware bra
 
 The projectile DoT listener runs at MONITOR with `ignoreCancelled=true`; it requires a non-empty DoT PDC string, a Player shooter and a LivingEntity hit target. It then applies the definition by ID. The projectile's own hit damage and the later DoT ticks are separate event paths.
 
+Paper 26.2 runtime probe (`DOT_SUPPRESSION_CHARACTERIZED`) confirmed a DoT tick runs with both `CombatService.isSuppressed()` and `reflectSuppressed()` true and no `AbilitySourceContext`, yet ActiveEffectManager still modifies it: with owner STEALTH active, event damage rose `1.20000005 → 1.80000007` (×1.5) at LOW, and the HIGH outgoing handler removed STEALTH before tick completion. This proves suppression/reflect scopes do not suppress ActiveEffectManager's LOW/HIGH effects.
+
 ### 7.2 Projectiles
 
 Confirmed projectile routes and listener order:
@@ -401,7 +403,7 @@ Not post-application:
 
 ## 12. Runtime evidence available
 
-The latest extended Stage 4 characterization passed in Forge run `46149178466`, Paper Runtime job `140991943209`, on the audited mainline snapshot `a96a1a5c`: Build & Test, Quality Gate, RIPS Security, Storage Integrity and Paper 26.2 Runtime all passed. The Paper job was then rerun on the same HEAD as job `140992866652`; it passed again and reproduced the same ActiveEffectManager order and Path A/Path B matrices. An earlier diagnostic attempt counted a reflect-suppressed secondary event; the final probe isolates the Blood Fury Path B event by AbilitySourceContext and reflect marker. Runtime evidence:
+The latest extended Stage 4 characterization passed in Forge run `46150512860`, Paper Runtime job `140996085392`, on audited mainline snapshot `a96a1a5c`: Build & Test, Quality Gate, RIPS Security, Storage Integrity and Paper 26.2 Runtime all passed. The preceding run `46149178466` and same-HEAD Paper rerun job `140992866652` had already reproduced the ActiveEffectManager order and Path A/Path B matrices; this latest run adds the DoT suppression probe and passes all gates. Runtime evidence:
 - Path B physical/magic cancellation combinations;
 - nested hit with outer physical cancellation;
 - event damage increased and reduced by another listener;
@@ -416,6 +418,7 @@ The latest extended Stage 4 characterization passed in Forge run `46149178466`, 
 - Black Mass CustomHealEvent attribution: `healerNull=true`;
 - generic/specific probe actual order `specific → generic`; for ActiveEffectManager, direct behavior probe measured `onOutgoingLate → onIncomingLate` despite reflection enumeration `onIncomingLate → onOutgoingLate`;
 - ActiveEffectManager order-sensitive nested proc: `state=OUTGOING_HIGH_BEFORE_INCOMING_HIGH`, `stealthAtNestedLowest=true`, nested damage `0.444 → 0.666`, LOW multiplier ratio `1.5` (`ACTIVE_EFFECT_SAME_INSTANCE_ORDER_CHARACTERIZED`);
+- DoT suppression: `suppressedAtLowest=true`, `reflectAtLowest=true`, `abilitySourceMarkNull=true`, STEALTH active at LOW, event damage `1.20000005 → 1.80000007` (×1.5), STEALTH removed by HIGH (`DOT_SUPPRESSION_CHARACTERIZED`);
 - Paper 26.2 / Java 25 HIGH HandlerList order: `Spec2RoleListener → PetService → ActiveEffectManager ×2 → PassiveListener`;
 - same-instance generic/specific probe observed `specific → generic` in one build, `generic → specific` in another, and an actual order differing from reflection in a third; ActiveEffectManager's actual method invocation order remains unproven;
 - nested reflect probe confirmed `NESTED_CLEAR_BUG`: an inner `endReflect()` clears the outer boolean marker.
