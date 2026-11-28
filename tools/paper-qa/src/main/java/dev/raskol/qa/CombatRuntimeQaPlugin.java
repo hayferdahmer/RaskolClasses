@@ -1040,7 +1040,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         activeEffectStealthAtNestedLowest = false;
         activeEffectOrderProbe = true;
         try {
-            target.damage(4.0, aggressor);
+            DamageSource outerSource = DamageSource.builder(DamageType.MAGIC)
+                    .withDirectEntity(aggressor)
+                    .withCausingEntity(aggressor)
+                    .build();
+            target.damage(4.0, outerSource);
         } finally {
             activeEffectOrderProbe = false;
             activeEffectOrderTargetId = null;
