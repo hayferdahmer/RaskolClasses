@@ -403,28 +403,28 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void capturePathAMonitorLowest(EntityDamageByEntityEvent event) {
         if (!pathAMonitorProbe
+                || !(event.getEntity() instanceof LivingEntity damaged)
                 || pathAMonitorTargetId == null
-                || !pathAMonitorTargetId.equals(event.getEntity().getUniqueId())
+                || !pathAMonitorTargetId.equals(damaged.getUniqueId())
                 || target == null
                 || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
             return;
         }
         pathAMonitorEvents++;
-        pathAMonitorLowestPool = event.getEntity().getHealth()
-                + event.getEntity().getAbsorptionAmount();
+        pathAMonitorLowestPool = damaged.getHealth() + damaged.getAbsorptionAmount();
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
     public void capturePathAMonitorMonitor(EntityDamageByEntityEvent event) {
         if (!pathAMonitorProbe
+                || !(event.getEntity() instanceof LivingEntity damaged)
                 || pathAMonitorTargetId == null
-                || !pathAMonitorTargetId.equals(event.getEntity().getUniqueId())
+                || !pathAMonitorTargetId.equals(damaged.getUniqueId())
                 || target == null
                 || !event.getDamager().getUniqueId().equals(target.getUniqueId())) {
             return;
         }
-        pathAMonitorMonitorPool = event.getEntity().getHealth()
-                + event.getEntity().getAbsorptionAmount();
+        pathAMonitorMonitorPool = damaged.getHealth() + damaged.getAbsorptionAmount();
         pathAMonitorEventDamage = event.getDamage();
         pathAMonitorCancelled = event.isCancelled();
     }
