@@ -287,12 +287,13 @@ Remaining runtime work: test non-Player shooters, cancelled/invalid PDC, offline
 ### 7.3 Pets
 
 Confirmed:
-- PetService stores owner UUID in pet PDC and sets vanilla wolf owner where applicable.
-- Its HIGH damage handler uses PDC owner for offline-owner and friendly-fire checks and may cancel.
-- `VanillaDamageListener.resolveAttacker` resolves only direct Player or projectile with Player shooter; it does not read pet-owner PDC.
-- `CombatService` opens non-null ability-source UUID only for Player source.
+- PetService stores owner UUID in pet PDC (`rc_pet_owner`) and sets vanilla wolf owner where applicable. Pet attack damage is calculated from owner stats/spec at summon and refreshed by pet buff/tick logic; this is a stat snapshot/update path, not combat-event owner attribution.
+- `PetRuntimeOwner.start()` registers PetService during core-service initialization, before `registerGameplayListeners()` registers ActiveEffectManager and PassiveListener. Its HIGH owner guard therefore precedes those listeners in the audited same-priority chain.
+- Its HIGH `onDamageByEntity` handler is not suppression-aware. For a pet damager it reads owner PDC, cancels if owner is offline, and cancels hits against owner/allies according to `combat.canHit(owner, victim)`. For a Player owner attacking a LivingEntity while their pet exists, it may retarget the pet if it has no live target. The separate HIGH `onTarget` handler prevents pet targeting of owner/allies.
+- Owner quit despawns the pet; periodic pet runtime also removes stale/offline-owner pets. Pet damage is not persisted across owner sessions.
+- `VanillaDamageListener.resolveAttacker` resolves only direct Player or projectile with Player shooter; it does not read pet-owner PDC. `CombatService` opens non-null `AbilitySourceContext` only for Player source.
 
-Pet owner attribution for damage stats, player procs, Black Mass, talents or shared source context is therefore **not established**. Ownership guard is not an owner-attribution resolver.
+PetService therefore enforces ownership/friendly-fire but does not rewrite pet damage attribution to the owner. Pet hits do not automatically receive owner Path A outgoing offense, WeaponMastery, owner procs, Black Mass, talents or owner ability-source context. Suppressed synthetic events can still reach PetService: the owner/friendly-fire guard remains active, and Player-source synthetic events can still trigger the pet-retarget side effect. Pet owner attribution for damage stats and shared source context is **not established**.
 
 ### 7.4 Procs and nested damage
 
