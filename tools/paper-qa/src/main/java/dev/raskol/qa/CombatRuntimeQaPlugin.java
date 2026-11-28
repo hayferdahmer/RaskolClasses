@@ -127,6 +127,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         normalTargetKey = new NamespacedKey(this, "normal-target");
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getScheduler().runTaskLater(this, this::runSuppressionProbe, 20L);
+        Bukkit.getScheduler().runTaskLater(this, () -> Stage4RuntimeCharacterization.run(this), 25L);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
