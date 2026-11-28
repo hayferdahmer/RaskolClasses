@@ -270,7 +270,7 @@ Proc placement is split:
 - Path A event-time work includes crit-proc rolls in `applyOutgoingOffense` and HIGH-listener side effects; some can invoke Path B recursively.
 - Path B has pre-application proc modifiers and post-application dispatch. `fromProc` affects selected follow-up behavior; it is not a universal guarantee that every event listener ignores resulting synthetic events.
 
-Nested calls require independent characterization of outer/nested AbilitySourceContext, suppression depth, reflect marker, per-call DamageAttribution, burst tokens, cancellation and callbacks. Existing Watchtower covers selected nested reservation and Black Mass source-context cases, not every proc combination.
+Nested calls require independent characterization of outer/nested AbilitySourceContext, suppression depth, reflect marker, per-call DamageAttribution, burst tokens, cancellation and callbacks. Paper 26.2 now confirms that nested `CombatService` calls are separated by child attribution scopes, while direct nested `target.damage()` is included in the parent frame. Other proc combinations and third-party nested calls remain open.
 
 ### 7.5 Reflection
 
@@ -326,7 +326,11 @@ Therefore the current Black Mass behavior is event-time, not actual-damage-based
 
 The actual-damage amount must be attributed to the originating hit exactly once. Nested damage, reflection and multiple component calls must not double-count the same applied delta. Healing continues through the existing two-argument `HpBarService.heal` / `CustomHealEvent` path by default, preserving the current null-healer attribution unless a separate gameplay decision changes it. `HpBarService.heal` returns no applied amount: anti-heal can short-circuit before the event, CustomHealEvent can cancel or modify the amount, and `HpPool.healFormula` clamps to the target's carrier max health. Do not infer that attempted healing equals applied healing or silently switch to the three-argument overload, which would change HEALER-role semantics.
 
-This is an approved gameplay-semantic target, but it is **not implemented in this documentation PR**. The source trace narrows Black Mass to Path B: `AbilitySourceContext.open()` is called only inside `CombatService.dealDamage()`, and `WarlockPassives.onDamageOut` requires the attacker UUID to equal `CombatService.abilitySourceMark()`. Ordinary Path A events do not satisfy that gate in this snapshot. A post-application dispatch can therefore use Path B's measured `actualTaken` after `DamageAttribution` completes, once per `dealDamage` invocation (aggregating physical and magic components), while retaining the existing reflect guard and HpBarService/CustomHealEvent path. Nested calls remain separate originating hits only when their own measured damage is positive; tests must prove that parent attribution excludes nested deltas and that one invocation cannot dispatch twice. This is a source-derived implementation direction, not a production change or a claim that the target contract is already satisfied. The existing Watchtower nested heal assertion verifies the current event-time behavior, not the approved post-application behavior.
+This is an approved gameplay-semantic target, but it is **not implemented in this documentation PR**. The source trace narrows Black Mass to Path B: `AbilitySourceContext.open()` is called only inside `CombatService.dealDamage()`, and `WarlockPassives.onDamageOut` requires the attacker UUID to equal `CombatService.abilitySourceMark()`. Ordinary Path A events do not satisfy that gate in this snapshot. A post-application dispatch can therefore use Path B's measured `actualTaken` after `DamageAttribution` completes, once per `dealDamage` invocation (aggregating physical and magic components), while retaining the existing reflect guard and HpBarService/CustomHealEvent path.
+
+The runtime probe confirms the attribution boundary: a nested `CombatService.dealDamage` call opens a child attribution scope and is measured separately; a direct nested `target.damage()` from an event listener does not open a child scope, so its applied delta is included in the parent frame. **Recommended dispatch boundary:** one Black Mass dispatch per `CombatService.dealDamage` invocation, using that invocation's measured delta. Child-scoped nested calls dispatch independently; unscoped direct nested event damage remains part of the parent aggregate and must not trigger a second Black Mass dispatch. This preserves one count of each applied delta at the call boundary; if a third-party plugin requires separate attribution for its direct nested hit, it must provide an explicit child scope or attribution contract. This is a proposed interpretation of the already-approved exactly-once target, not a production change.
+
+This is a source-derived implementation direction, not a production change or a claim that the target contract is already satisfied. The current Watchtower tests verify the event-time behavior and characterize the current violations described below.
 
 ## 10. What is truly post-application?
 
@@ -354,13 +358,13 @@ Not post-application:
 3. **Path A full Player branch:** preserve line-by-line call-site map for avoidance, armor/mitigation, Expose, cap and reservation, including early returns and source types.
 4. **Path B synthetic modifiers:** characterize LOW/HIGH changes and reconcile actual damage with pre-event cap/reservation semantics.
 5. **Suppression contract (decision recorded):** target behavior skips re-entry damage calculations and duplicate RaskolClasses modifiers/procs, but preserves mandatory defensive/ownership checks; it is not a blanket bypass of all listeners. Current implementation does not yet satisfy this contract.
-6. **Black Mass (decision recorded):** target lifesteal is based on actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal. Current implementation remains event-time until a separately reviewed implementation is approved.
+6. **Black Mass (decision recorded; runtime divergence confirmed):** target lifesteal is based on actual applied health + absorption damage; cancelled/zero-applied hits grant no lifesteal; one aggregate dispatch per originating `dealDamage` invocation. Paper 26.2 characterization confirms current event-time violations: a cancelled hit (`actualDamage=0`) still created one CustomHealEvent and healed about `0.1332`; one hybrid physical+magic invocation created two CustomHealEvents; direct unscoped nested damage was included in the parent measured delta. Production behavior remains unchanged.
 7. **DoT:** test online/offline owner, school/event causes, ActiveEffectManager, FIGHTER/passives, death, refresh/stacking and DPS cap.
 8. **Projectiles:** inventory every family, launch metadata, ability identity, PDC validation and non-Player shooter.
 9. **Pets:** decide/test owner credit for stats, procs, talents, PvP and source context.
 10. **Proc recursion:** cover each proc family, `fromProc`, nested source scopes, suppression depth, reflection and burst tokens.
 11. **Reflection nesting (runtime-characterized):** the boolean marker clears the outer scope after an inner end. Confirm whether current in-repo call paths structurally prevent nesting; any change to depth-counted semantics requires a separate implementation review.
-12. **Healing/lifesteal application:** trace CustomHealEvent to actual health change, max-health clamp, cancellation, dead target, overheal/absorption and recursion.
+12. **Healing/lifesteal application (partially runtime-characterized):** CustomHealEvent healer is null on the current two-argument Black Mass call; Paper 26.2 probes confirmed cancellation and multi-component timing violations. Remaining work: dead target, overheal/absorption, CustomHealEvent cancellation/modification and recursion edge cases.
 13. **Paper application:** compare event damage with actual health/absorption for relevant entities and DamageSources.
 14. **Talents:** all 20 talent nodes remain disabled; no talent behavior is assumed.
 
@@ -373,12 +377,16 @@ The isolated Paper 26.2 Watchtower run for mainline snapshot `a96a1a5c` passed s
 - absorption-only application;
 - Path A external reduction, external increase/overage, nested success with outer cancellation, and nested plus outer success;
 - suppression scope visibility/cleanup;
-- Black Mass nested source UUID and tested heal result;
+- Black Mass nested source UUID: expected heal `0.19980000000000003`, actual `0.199798583984375`;
+- cancelled Path B hit: `actualDamage=0.0`, `customHealEvents=1`, `actualHeal=0.13320159912109375` (`HEAL_EVENT_ON_CANCELLED_HIT`);
+- one hybrid physical+magic `dealDamage`: `damageEvents=2`, `customHealEvents=2`, `actualDamage=1.9400005340576172` (`MULTIPLE_HEAL_EVENTS_PER_INVOCATION`);
+- direct nested `target.damage()` without child scope: `parentReported=2.8600006103515625`, equal to `totalPoolDelta`, with two damage/heal events (`UNSCOPED_DIRECT_NESTED_DELTA_INCLUDED_IN_PARENT`);
+- Black Mass CustomHealEvent attribution: `healerNull=true`;
 - Paper 26.2 / Java 25 HIGH HandlerList order: `Spec2RoleListener → PetService → ActiveEffectManager ×2 → PassiveListener`;
 - same-instance generic/specific probe observed `specific → generic` in one build, `generic → specific` in another, and an actual order differing from reflection in a third; ActiveEffectManager's actual method invocation order remains unproven;
 - nested reflect probe confirmed `NESTED_CLEAR_BUG`: an inner `endReflect()` clears the outer boolean marker.
 
-These scenarios characterize the plugin's own HIGH listener-instance order on Paper 26.2 / Java 25 and demonstrate that same-instance method order can vary between builds. They still do not establish a stable same-instance method contract, the external production plugin chain, complete modifier parity or every Path A / Path B route.
+These scenarios characterize the plugin's own HIGH listener-instance order, reflect marker behavior and selected Black Mass attribution boundaries on Paper 26.2 / Java 25. The run that produced the Black Mass markers stopped at the ActiveEffectManager same-instance behavior probe because the QA harness counted an additional nested event; Path A was not rerun in that attempt. Earlier Watchtower runs passed the existing Path A and Path B matrices. The probes still do not establish a stable same-instance method contract or the external production plugin chain.
 
 ## 13. Stage 4 conclusion and review gate
 
