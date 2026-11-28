@@ -272,14 +272,17 @@ The projectile DoT listener runs at MONITOR with `ignoreCancelled=true`; it requ
 
 ### 7.2 Projectiles
 
-Confirmed:
-- Path A resolves a direct Player attacker or a projectile with Player shooter.
-- Item PDC can override projectile `shotDamage` and `shotType`.
-- LOW/HIGH ActiveEffectManager has stealth and arrow-specific AIMED_SHOT behavior.
-- Synchronous `AbilitySourceContext` does not automatically survive projectile flight.
-- Fan-arrow sets vanilla arrow damage to zero and routes tagged impact damage through Path B; zero-damage arrow event and custom Path B hit are separate.
+Confirmed projectile routes and listener order:
 
-Open: all projectile families, non-Player shooters, launch-to-impact ability identity, PDC validation and each custom hit route.
+- Path A resolves a direct Player attacker or a projectile with Player shooter. Bow-shot metadata is written by `ItemHook.shoot` at MONITOR (`shotDamage` + `shotType`) and read by `VanillaDamageListener`; a finite non-negative shotDamage overrides item attack damage. `shotType` is MAGIC only for the exact string `"MAGIC"`; other non-null values resolve as PHYSICAL.
+- `CCGuard.onProjectileLaunch` runs at HIGHEST, returns if suppressed, and cancels Player launches while DISARM is active. The ItemHook MONITOR writer ignores cancelled launch events.
+- LOW/HIGH ActiveEffectManager applies STEALTH and arrow-specific AIMED_SHOT behavior. Ordinary bow arrows retain the native Path A damage event.
+- Mage snowball has two impact routes on the same projectile: MageAbilities writes the DotService PDC tag `burning` and also calls `FxService.chargeProjectile` with `phys=0`, `magic=dmg`. DotService handles ProjectileHitEvent at MONITOR; FxService handles the same event at MONITOR and applies hybrid Path B damage. DotRuntimeOwner registers DotService during core-service initialization, before FxService is registered later in `registerGameplayListeners`; therefore the internal same-priority order is DotService apply-DoT first, then FxService direct Path B hit. If the direct hit kills the target, the DoT instance is later removed by the dead-target tick cleanup.
+- Fan-arrow sets vanilla arrow damage to zero, writes a DOUBLE `fan_arrow` PDC value, and its HIGH `FanArrowHit` listener calls Path B `CombatService.dealDamage`. The zero-damage vanilla arrow event and custom Path B hit are separate.
+- `FxService` consumes its charged-shot map entry on hit; if caster is offline or hit is not a LivingEntity, it does not apply the custom hit. DoT projectile application separately requires a Player shooter, valid non-empty DoT ID and LivingEntity hit.
+- Synchronous `AbilitySourceContext` does not automatically survive projectile flight. Fan-arrow and FxService open a new Path B context at impact; DoT application/ticks do not open one.
+
+Remaining runtime work: test non-Player shooters, cancelled/invalid PDC, offline caster, same-projectile dual route when the direct hit is lethal, and third-party ProjectileHitEvent listeners at MONITOR.
 
 ### 7.3 Pets
 
