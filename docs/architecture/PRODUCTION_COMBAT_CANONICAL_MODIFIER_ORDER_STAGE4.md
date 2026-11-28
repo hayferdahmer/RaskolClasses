@@ -259,14 +259,16 @@ Consequences:
 
 Confirmed in `DotService`:
 
-- Each DoT instance stores owner UUID.
-- A tick requires the owner Player to be online; offline-owner ticks are skipped.
-- Per-target aggregate DPS cap is applied before damage calls.
-- Each tick opens suppression and reflect-suppression scopes, then calls `target.damage` with owner as source.
-- Physical channel uses Player-source damage; non-physical channel uses magic DamageSource with owner attribution when available.
-- DoT tick does not open `AbilitySourceContext`.
+- Each DoT instance stores owner UUID; projectile-applied DoT is read from the projectile PDC tag.
+- `computeTicks` requires the owner Player to be online and `combat.canHit(owner, target)`. If either check fails at calculation time, the outcome is zero and that instance is removed from the target list (not merely paused). There is a second online check immediately before damage; if the owner disconnects between calculation and application, that tick is skipped.
+- Tick damage is calculated per instance from DPS × stacks, school multiplier, immunity, Seal Amplify, target profile multiplier, channel/school mitigation and the per-target aggregate DPS cap (default 6% of formula max HP); the resulting tick is scaled and applied separately for each positive instance.
+- Each instance opens general suppression and reflect-suppression scopes, resets target no-damage ticks, then calls `target.damage`.
+- PHYSICAL channel uses Player-source damage. MAGIC/TRUE channels use registry `minecraft:magic` DamageSource with the owner as direct/causing entity; if the registry lookup returns null, code falls back to Player-source damage, which would expose a PHYSICAL event path.
+- DoT does not open `AbilitySourceContext` or a child `DamageAttribution` scope.
 
-Therefore Path A's ordinary formula and CCGuard attack restrictions are bypassed, but non-suppression-aware listeners can still observe/mutate the event. Black Mass's ability-source equality gate is not established for DoT because the tick does not open the ability-source scope. Do not award Black Mass lifesteal to DoT without a targeted test. Reflect marker suppresses selected Black Mass/recoil consumers; it is not general listener suppression.
+Therefore `VanillaDamageListener` and `CCGuard` skip their suppression-aware branches, but `ActiveEffectManager`, `Spec2RoleListener` and `PassiveListener` are not globally suppression-aware and can still observe/mutate the synthetic event. In particular, LOW STEALTH and HIGH FIGHTER/passive behavior can affect DoT ticks even though DotService already computed tick damage. Black Mass's ability-source UUID gate does not pass for an ordinary DoT tick because no `AbilitySourceContext` is opened. The reflect marker suppresses selected reflection-sensitive consumers; it is not general listener suppression and remains a boolean non-depth-counted scope.
+
+The projectile DoT listener runs at MONITOR with `ignoreCancelled=true`; it requires a non-empty DoT PDC string, a Player shooter and a LivingEntity hit target. It then applies the definition by ID. The projectile's own hit damage and the later DoT ticks are separate event paths.
 
 ### 7.2 Projectiles
 
