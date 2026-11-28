@@ -903,8 +903,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     /**
-     * Characterizes the current HIGH-side-effect timing when a later HIGHEST
-     * handler cancels the originating Path B hit.
+     * Проверяет текущее HIGH-побочное действие, если последующий HIGHEST-обработчик
+     * отменяет исходный hit Path B.
      */
     private void runBlackMassCancelledHitProbe() {
         target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
@@ -961,8 +961,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     /**
-     * Characterizes whether a single physical+magic dealDamage invocation
-     * emits one or multiple Black Mass CustomHealEvents.
+     * Проверяет, создаёт ли один вызов dealDamage с physical+magic один или несколько
+     * событий CustomHealEvent для Black Mass.
      */
     private void runBlackMassMultiComponentProbe() {
         target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
